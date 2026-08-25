@@ -22,8 +22,9 @@ const clock = (at: number) =>
 function chosenChip(beat: Story[string], next: Entry | undefined): Chip | null {
   if (!next || next.kind !== "user") return null
   return (
-    beat.chips?.find((c) => c.style !== "hidden" && c.label === next.text) ??
-    null
+    beat.chips?.find(
+      (c) => c.style !== "hidden" && (c.sayAs ?? c.label) === next.text
+    ) ?? null
   )
 }
 

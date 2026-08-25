@@ -74,6 +74,13 @@ export interface Chip {
    */
   matchText?: string[]
   /**
+   * What lands in the transcript when this chip is clicked, if different from
+   * the button's own label — a short button ("Approve") can still read as the
+   * fuller scripted line ("Thank you, I'll approve all of them and send a
+   * copy to our partner, Sara Vitelli") in the conversation.
+   */
+  sayAs?: string
+  /**
    * "link" renders as a single line of link text with a check mark, for a
    * beat with exactly one obvious next step, instead of a full pill button.
    * "hidden" isn't rendered at all — it exists only so free text or a
@@ -90,6 +97,12 @@ export interface Beat {
   effect?: (s: State) => State
   /** Plays immediately after this one, with no turn from the user between. */
   then?: string
+  /**
+   * A synthetic user line inserted right before `then` plays — the forced
+   * flow keeps moving from one click, but the transcript still reads as a
+   * real back-and-forth instead of two assistant messages run together.
+   */
+  thenSay?: string
   /**
    * The scripted reply for this turn. It arrives pre-filled in the composer so
    * a presenter can just press send — editable, and never required.

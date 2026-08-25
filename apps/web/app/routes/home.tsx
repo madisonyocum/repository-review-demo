@@ -72,18 +72,24 @@ function Screen() {
     if (!beat) return
     dispatch({ type: "beat", beatId: beat.id, effect: beat.effect })
 
-    // Some beats hand straight on, with no turn from the user between them.
-    let follow = beat.then ? stories.all[beat.then] : undefined
+    // Some beats hand straight on, with no real turn from the user between
+    // them — but a scripted line (thenSay) can still land in the transcript
+    // first, so a forced multi-step sequence still reads as a conversation
+    // rather than two assistant messages run together.
+    let current = beat
+    let follow = current.then ? stories.all[current.then] : undefined
     const seen = new Set([beat.id])
     while (follow && !seen.has(follow.id)) {
       seen.add(follow.id)
+      if (current.thenSay) dispatch({ type: "say", text: current.thenSay })
       dispatch({ type: "beat", beatId: follow.id, effect: follow.effect })
-      follow = follow.then ? stories.all[follow.then] : undefined
+      current = follow
+      follow = current.then ? stories.all[current.then] : undefined
     }
   }
 
   function onChip(chip: Chip) {
-    dispatch({ type: "say", text: chip.label })
+    dispatch({ type: "say", text: chip.sayAs ?? chip.label })
     go(chip.next)
   }
 

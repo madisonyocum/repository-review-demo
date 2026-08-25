@@ -447,7 +447,13 @@ export function buildStories(result: Classification): {
         // rule what-if on its own — no link to find, no phrase to type. The
         // whole batch-review → escalate → rule → manifest sequence plays out
         // from this one click.
-        { label: `Approve the ${readyAfterB}`, next: "b5escalate", primary: true },
+        {
+          label: `Approve the ${readyAfterB}`,
+          next: "b5escalate",
+          primary: true,
+          sayAs:
+            "Thank you, I'll approve all of them and send a copy to our partner, Sara Vitelli",
+        },
       ],
     },
     {
@@ -468,6 +474,8 @@ export function buildStories(result: Classification): {
       ),
       effect: (s) => ({ ...s, escalatedUnknown: allUnknownIds }),
       then: "b5rule",
+      thenSay:
+        "Thank you. Also, don't trust FINAL at all. Everyone typed it on everything.",
     },
     {
       id: "b5rule",
