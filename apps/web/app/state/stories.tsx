@@ -158,25 +158,6 @@ export function buildStories(result: Classification): {
     }
   }
 
-  const applyReady = (s: State): State => {
-    const recorded = new Set(s.changes.map((c) => c.fileId))
-    const demoted = new Set(s.demoted)
-    const at = new Date()
-    const pending = result.docs.filter(
-      (d) => d.bucket === "ready" && !recorded.has(d.id) && !demoted.has(d.id)
-    )
-    return {
-      ...s,
-      changes: [
-        ...s.changes,
-        ...pending.map((d) => changeFor(d, "Assistant", s.archived, at)),
-      ],
-      resolved: s.resolved + pending.length,
-      piles: { ...s.piles, ready: 0 },
-      done: { ...s.done, B: true },
-    }
-  }
-
   /* ---------------------------------------------------------------- */
   /* Story A — one file, in depth                                     */
   /* ---------------------------------------------------------------- */
@@ -462,21 +443,11 @@ export function buildStories(result: Classification): {
       suggest: `That's better. Approve the ${readyAfterB}.`,
       chips: [
         { label: "Show me another five", next: "b2r" },
-        { label: `Approve the ${readyAfterB}`, next: "b6", primary: true },
-        // A real, findable link — plus the hidden twin below, so typing the
-        // escalation yourself (the way the scripted line does it) still
-        // lands in the same place without needing this button at all.
-        {
-          label: "Send the can't-identify pile to a partner",
-          next: "b5escalate",
-          style: "link",
-        },
-        {
-          label: "Escalate to partner",
-          next: "b5escalate",
-          style: "hidden",
-          matchText: ["partner", "sara"],
-        },
+        // The primary path now runs straight through the escalation and the
+        // rule what-if on its own — no link to find, no phrase to type. The
+        // whole batch-review → escalate → rule → manifest sequence plays out
+        // from this one click.
+        { label: `Approve the ${readyAfterB}`, next: "b5escalate", primary: true },
       ],
     },
     {
@@ -496,16 +467,7 @@ export function buildStories(result: Classification): {
         </>
       ),
       effect: (s) => ({ ...s, escalatedUnknown: allUnknownIds }),
-      suggest:
-        "Thank you. Also, don't trust FINAL at all. Everyone typed it on everything.",
-      chips: [
-        {
-          label: "Apply the FINAL rule",
-          next: "b5rule",
-          primary: true,
-          style: "hidden",
-        },
-      ],
+      then: "b5rule",
     },
     {
       id: "b5rule",
@@ -531,10 +493,10 @@ export function buildStories(result: Classification): {
         </>
       ),
       effect: (s) => ({ ...s, finalRuleApplied: true }),
+      suggest: "Good, apply everything and show me the manifest.",
       chips: [
-        { label: "Show all changed files", next: "dashboard", primary: true },
+        { label: "Apply everything", next: "manifest", primary: true },
         { label: "Show all rules", next: "b5rules" },
-        { label: "Undo the rule", next: "b5" },
       ],
     },
     {
@@ -547,18 +509,7 @@ export function buildStories(result: Classification): {
           affects {finalRuleImpact.changedProposals} files.
         </p>
       ),
-      chips: [{ label: "Back to the sample", next: "b5" }],
-    },
-    {
-      id: "b6",
-      actor: "assistant",
-      content: <AppliedCopy />,
-      effect: applyReady,
-      suggest: "Apply everything and show me the manifest.",
-      chips: [
-        { label: "Apply everything", next: "manifest", primary: true },
-        { label: "Back to the dashboard", next: "dashboard" },
-      ],
+      chips: [{ label: "Back", next: "b5rule" }],
     },
   ]
 
@@ -582,16 +533,6 @@ function TrustRuleCopy({ result }: { result: Classification }) {
       the filename - which is the thing we just spent {result.counts.review > 0 ? "a file" : "time"}{" "}
       establishing you can&rsquo;t always do. You can turn it off in the
       manifest.
-    </p>
-  )
-}
-
-function AppliedCopy() {
-  return (
-    <p>
-      Applied. Each of those was renamed from its own contents, and the old name
-      is in the manifest next to the new one. Nothing was deleted and nothing
-      moved out of your reach.
     </p>
   )
 }
