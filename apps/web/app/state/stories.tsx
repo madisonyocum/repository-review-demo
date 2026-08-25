@@ -402,14 +402,11 @@ export function buildStories(result: Classification): {
           how confident I am. How can I help you get through them?
         </p>
       ),
-      suggest: `Okay let's start, what about the ${result.counts.ready} you said were fine? Let's review and approve those.`,
+      suggest: `Okay let's start, what about the ${result.counts.ready} you said were fine? Let's review those.`,
       chips: [
-        {
-          label: `We'll start with the ${result.counts.ready} ready to approve`,
-          next: "b2",
-          primary: true,
-          style: "link",
-        },
+        { label: `Start with the ${result.counts.ready}`, next: "b2", primary: true },
+        { label: `Review the ${result.counts.review}`, next: "a1" },
+        { label: "Show me what you couldn't identify", next: "dashboard" },
       ],
     },
     {

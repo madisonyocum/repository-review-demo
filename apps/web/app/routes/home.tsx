@@ -61,6 +61,13 @@ function Screen() {
       })
       return
     }
+    // A hub beat can hand off to the other story's opening beat. That's a
+    // fresh transcript for that story, the same as clicking its dashboard
+    // tile — not another turn appended to whichever story is running now.
+    if (next === "a1" && state.storyId !== "A") {
+      dispatch({ type: "story", id: "A", firstBeat: "a1" })
+      return
+    }
     const beat = stories.all[next]
     if (!beat) return
     dispatch({ type: "beat", beatId: beat.id, effect: beat.effect })
