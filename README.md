@@ -1,5 +1,8 @@
 # Repository Review — demo prototype
 
+**Live:** https://madisonyocum.github.io/repository-review-demo/
+**Repo:** https://github.com/madisonyocum/repository-review-demo
+
 A single-screen prototype of a contract repository clean-up assistant, built
 from the Figma file. Demo-grade: no backend, no API calls, no live inference.
 
@@ -8,6 +11,10 @@ pnpm install
 pnpm --filter web dev     # http://localhost:5173
 pnpm --filter web test    # 20 unit tests
 pnpm build
+
+# Deploy to GitHub Pages (rebuilds with the /repository-review-demo/ base path
+# baked in, then force-pushes apps/web/build/client to the gh-pages branch)
+GH_PAGES=1 pnpm --filter web build
 ```
 
 ## The counts are real
