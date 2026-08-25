@@ -592,7 +592,8 @@ export function buildStories(result: Classification): {
         </>
       ),
       effect: ensureSample,
-      suggest: "You found it, that fifth one hasn't got a company name on it.",
+      suggest:
+        "These look good except the fifth one hasn't got a company name on it.",
       chips: [
         // Hidden: gives free text and the pre-filled suggestion above a
         // correct destination without a visible pill for it.
@@ -610,7 +611,8 @@ export function buildStories(result: Classification): {
         </>
       ),
       effect: roll,
-      suggest: "You found it, that fifth one hasn't got a company name on it.",
+      suggest:
+        "These look good except the fifth one hasn't got a company name on it.",
       chips: [
         { label: "One is wrong", next: "b4", primary: true, style: "hidden" },
         { label: "Show me five more", next: "b2r" },

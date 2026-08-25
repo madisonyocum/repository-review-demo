@@ -220,7 +220,7 @@ export function RuleCard({ id, rule }: { id: string; rule: string }) {
       <span className="min-w-0 flex-1 truncate text-[0.9375rem]">
         {d.filename}
       </span>
-      <span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
+      <span className="flex shrink-0 items-center gap-1.5 text-sm text-primary">
         <Pencil className="size-3.5" />
         {rule}
       </span>
