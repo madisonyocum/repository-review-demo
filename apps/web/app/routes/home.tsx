@@ -206,13 +206,15 @@ function Screen() {
             the panel above it scrolls. Every region is on screen from the
             first frame — just the panel changes with the view. */}
         <main className="flex min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto px-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-8">
             {/* One grid for every view, so the panel keeps the same width
-                whether a repository is loaded or not, and sits a single gap
-                away from the rail beside it. */}
+                whether a repository is loaded or not. The grid gap and this
+                region's own padding are the same number, so the three
+                sections are separated by one gutter, not two different
+                ones. */}
             <div
               className={cn(
-                "mx-auto grid w-full max-w-[64rem] gap-4 py-4 xl:max-w-[90rem] xl:grid-cols-[1fr_25rem]",
+                "mx-auto grid w-full max-w-[64rem] gap-8 py-4 xl:max-w-[90rem] xl:grid-cols-[1fr_25rem]",
                 state.view === "upload" && "items-stretch"
               )}
             >
@@ -254,11 +256,11 @@ function Screen() {
               <ChangesRail stretch={state.view === "upload"} />
             </div>
           </div>
-          <div className="shrink-0 px-6">
+          <div className="shrink-0 px-8">
             {/* On the opening screen the composer sits under the column of
                 cards, not under the whole region: the same grid, so it takes
                 the same left edge and the same width as the boxes above it. */}
-            <div className="mx-auto grid w-full max-w-[64rem] gap-4 xl:max-w-[90rem] xl:grid-cols-[1fr_25rem]">
+            <div className="mx-auto grid w-full max-w-[64rem] gap-8 xl:max-w-[90rem] xl:grid-cols-[1fr_25rem]">
               <div className="min-w-0">
                 {/* Directly above the composer, where the answer is about to
                   appear — the same place the eye already is. The spinner and
