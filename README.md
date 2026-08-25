@@ -1,55 +1,31 @@
 # Repository Review
 
-**Live demo:** https://madisonyocum.github.io/repository-review-demo/ — nothing to
-install, click *Use the sample repository*.
-**Source:** https://github.com/madisonyocum/repository-review-demo
+**Live demo:** https://madisonyocum.github.io/repository-review-demo/ (nothing to install)
 
 ## What this is
 
-A legal team keeps 220 contracts in a shared drive and the filenames have stopped
-meaning anything: `final-v2 copy.docx`, `Vantage SOW FINAL_v2.doc`, four versions
-of one agreement with byte-identical text, a scan nobody can read. Somewhere in
-there is the version that was actually signed, and no one can say which.
+A shared drive holds 220 contracts. The filenames are a mess, and nobody can
+tell which version was actually signed.
 
-This is a working prototype of an assistant that reads that repository, sorts
-every file into three piles by how sure it is, and then talks a person through
-the ones it can't settle on its own. It renames and it moves. It never deletes.
+This prototype reads them, sorts them into three piles, asks you what the new
+names should look like, and talks you through the ones it can't decide on its
+own. It renames and moves files. It never deletes them.
 
-Prototype, not product: one screen, no backend, and a bundled 220-row CSV
-standing in for the drive. It is built from the Figma file and meant to be
-clicked through, not deployed.
+One screen, no backend, a bundled CSV standing in for the drive.
 
-## Try it in a minute
+## Try it
 
-1. Open the live demo and press **Use the sample repository**. The three piles
-   fill in — 132 ready to apply, 76 needing review, 12 it can't identify.
-2. Press **Review the 76** (one file in depth) or **Review the 132** (a whole
-   pile, by sample). Either way the assistant asks what the new filenames should
-   look like *before* it touches anything — take its suggestion, pick a preset,
-   or type a convention in your own words.
-3. Follow the conversation. Buttons and free text both move it along; you can't
-   get it stuck.
-4. It ends at **Apply everything** → a manifest of all 220 files, with a real
-   CSV to download.
+Open the live demo, then: **Use the sample repository** → **Review the 76** →
+follow the conversation → **Apply everything**.
 
-Everything you can click is live. The counts, the random sample, the manifest
-arithmetic and the CSV are all computed from the data in the browser — there is
-no scripted screen recording behind any of it.
+Nothing is faked. The counts, the sample, the manifest and the downloadable CSV
+are all computed in the browser from the data.
 
-## What's worth looking at
+Three things worth watching for:
 
-- **The convention is the user's, not the product's.** The demo never assumes a
-  naming scheme. It proposes one, shows it rendered on a real file, and waits.
-- **It won't delete.** Asked directly to delete three superseded copies, it
-  archives them instead and explains why that's reversible — and pressing *No,
-  delete them* still doesn't delete them.
-- **It shows what a rule costs.** Say "don't trust FINAL" and it re-runs the
-  whole classification and reports both sides: how many files got easier, how
-  many got harder.
-- **It admits what it can't do.** The demo deliberately ends with 19 files still
-  unresolved and named as somebody's problem, rather than a clean zero.
-
-Full detail on all of it below.
+- It asks how you want files named before it renames anything.
+- Told to delete three old copies, it archives them instead and says why.
+- It ends with 19 files unresolved rather than a tidy zero.
 
 ## Running it locally
 
