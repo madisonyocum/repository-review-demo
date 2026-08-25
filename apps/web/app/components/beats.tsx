@@ -309,9 +309,9 @@ export function ConventionCard() {
           {conventionNotes.map((note) => (
             <li
               key={note}
-              className="flex items-start gap-2 text-[0.8125rem] text-muted-foreground"
+              className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground"
             >
-              <Pencil className="mt-0.5 size-3 shrink-0" />
+              <Pencil className="size-3 shrink-0" />
               {note}
             </li>
           ))}
