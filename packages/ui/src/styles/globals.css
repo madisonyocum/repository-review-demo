@@ -4,7 +4,6 @@
 @import "@fontsource-variable/outfit";
 @import "@fontsource-variable/inter";
 
-@custom-variant dark (&:is(.dark *));
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../../../components/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
@@ -16,14 +15,14 @@
     --popover-foreground: oklch(0.145 0 0);
     --primary: oklch(0.488 0.243 264.376);
     --primary-foreground: oklch(0.97 0.014 254.604);
-    --secondary: oklch(0.967 0.001 286.375);
+    --secondary: oklch(0.968 0.003 250);
     --secondary-foreground: oklch(0.21 0.006 285.885);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
+    --muted: oklch(0.972 0.002 250);
+    --muted-foreground: oklch(0.55 0.012 258);
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
+    --border: oklch(0.936 0.002 250);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
     --chart-1: oklch(0.809 0.105 251.813);
@@ -41,42 +40,21 @@
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
     --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
+    --foreground: oklch(0.16 0.01 260);
+
+    /* Semantic states. The preset's chart ramp is five shades of one blue, so
+       ok / warn / destructive would be indistinguishable. --destructive is the
+       third state; --primary stays reserved for primary actions. */
+    --ok: oklch(0.52 0.10 158);
+    --warn: oklch(0.62 0.12 76);
+
+    /* Elevation. Cards float on the page ground rather than being boxed in. */
+    --shadow-card: 0 1px 2px 0 oklch(0.16 0.01 260 / 0.04),
+        0 8px 24px -8px oklch(0.16 0.01 260 / 0.08);
+    --shadow-raised: 0 1px 2px 0 oklch(0.16 0.01 260 / 0.05),
+        0 16px 40px -12px oklch(0.16 0.01 260 / 0.12);
 }
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.424 0.199 265.638);
-    --primary-foreground: oklch(0.97 0.014 254.604);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.809 0.105 251.813);
-    --chart-2: oklch(0.623 0.214 259.815);
-    --chart-3: oklch(0.546 0.245 262.881);
-    --chart-4: oklch(0.488 0.243 264.376);
-    --chart-5: oklch(0.424 0.199 265.638);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.623 0.214 259.815);
-    --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
-}
 
 @theme inline {
     --color-background: var(--background);
@@ -102,6 +80,8 @@
     --color-chart-3: var(--chart-3);
     --color-chart-4: var(--chart-4);
     --color-chart-5: var(--chart-5);
+    --color-ok: var(--ok);
+    --color-warn: var(--warn);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -117,13 +97,40 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
-    --font-sans: 'Outfit', sans-serif;
-    --font-heading: var(--font-sans);
+    /* @fontsource-variable registers these as "<Name> Variable"; asking for
+       'Outfit' alone silently fell back to the system face, which the browser
+       then synthesised weights for. */
+    --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-heading: 'Outfit Variable', 'Outfit', var(--font-sans);
+}
+
+/* One surface treatment, used by every card-like region. */
+@utility surface {
+    border-radius: var(--radius);
+    background-color: var(--card);
+    box-shadow: var(--shadow-card);
+    border: 1px solid color-mix(in oklch, var(--border), transparent 35%);
+}
+
+@utility surface-raised {
+    border-radius: calc(var(--radius) * 1.4);
+    background-color: var(--card);
+    box-shadow: var(--shadow-raised);
+    border: 1px solid color-mix(in oklch, var(--border), transparent 45%);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    }
+  /* Semibold is the heaviest weight the product uses. */
+  b,
+  strong {
+    font-weight: 600;
+    }
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    font-weight: 600;
     }
   body {
     @apply bg-background text-foreground;

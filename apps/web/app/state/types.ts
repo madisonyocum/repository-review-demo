@@ -1,0 +1,89 @@
+import type { ReactNode } from "react"
+
+import type { Classification, RawRow } from "@/lib/classify"
+
+export type View = "upload" | "dashboard" | "chat" | "manifest"
+
+export type ChangeAction =
+  | "rename"
+  | "move"
+  | "rename+move"
+  | "supersede"
+  | "no-action"
+
+export interface Change {
+  fileId: string
+  oldName: string
+  newName: string
+  oldPath: string
+  newPath: string
+  action: ChangeAction
+  reason: string
+  approvedBy: string
+  approvedAt: string
+}
+
+export interface Piles {
+  ready: number
+  review: number
+  withPartner: number
+  unknown: number
+}
+
+export interface State {
+  view: View
+  rows: RawRow[]
+  result: Classification | null
+  source: string | null
+  piles: Piles
+  resolved: number
+  /** Pile keys whose number changed on the last transition, for the scale bump. */
+  bumped: (keyof Piles)[]
+  storyId: StoryId | null
+  transcript: Entry[]
+  changes: Change[]
+  sample: string[]
+  demoted: string[]
+  archived: string[]
+  trustFinal: boolean
+  done: { A: boolean; B: boolean }
+  seed: number
+}
+
+export type StoryId = "A" | "B"
+
+export type Entry =
+  | { kind: "beat"; beatId: string; at: number }
+  | { kind: "user"; text: string; at: number }
+
+export interface Chip {
+  label: string
+  next: string
+  /** Renders as a primary action. Primary is for primary actions only. */
+  primary?: boolean
+  tone?: "default" | "destructive"
+  /**
+   * "link" renders as a single line of link text with a check mark, for a
+   * beat with exactly one obvious next step, instead of a full pill button.
+   * "hidden" isn't rendered at all — it exists only so free text or a
+   * pre-filled suggestion has somewhere correct to go via the primary flag.
+   */
+  style?: "button" | "link" | "hidden"
+}
+
+export interface Beat {
+  id: string
+  actor: "assistant" | "user"
+  content: ReactNode | string
+  chips?: Chip[]
+  effect?: (s: State) => State
+  /** Plays immediately after this one, with no turn from the user between. */
+  then?: string
+  /**
+   * The scripted reply for this turn. It arrives pre-filled in the composer so
+   * a presenter can just press send — editable, and never required.
+   */
+  suggest?: string
+}
+
+export type Story = Record<string, Beat>
