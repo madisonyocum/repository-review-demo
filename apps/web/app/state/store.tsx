@@ -38,6 +38,7 @@ export const initialState: State = {
   escalatedUnknown: [],
   finalRuleApplied: false,
   done: { A: false, B: false },
+  loadedAt: 0,
   seed: 1,
 }
 
@@ -112,6 +113,7 @@ function reduce(state: State, action: Action): State {
           unknown: result.counts.unknown,
         },
         seed: Math.floor(Math.random() * 1e9),
+        loadedAt: Date.now(),
       }
     }
     case "view":

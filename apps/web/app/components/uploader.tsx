@@ -50,7 +50,7 @@ export function Uploader() {
         if (file) void load(file)
       }}
       className={cn(
-        "surface p-5 transition-colors",
+        "surface h-full px-5 pt-5 pb-3.5 transition-colors",
         over && "border-ring/50 bg-secondary"
       )}
     >

@@ -68,6 +68,8 @@ export interface State {
   /** Story B's "distrust FINAL" what-if has been walked through. */
   finalRuleApplied: boolean
   done: { A: boolean; B: boolean }
+  /** When a repository was last read, for the confirmation toast. */
+  loadedAt: number
   seed: number
 }
 

@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 
+import { cn } from "@workspace/ui/lib/utils"
 import { ChangesRail } from "@/components/changes-rail"
 import { ChatFeed } from "@/components/chat-feed"
 import { Composer } from "@/components/composer"
@@ -9,6 +10,7 @@ import { Tiles } from "@/components/tiles"
 import { ManifestPanel } from "@/components/manifest-panel"
 import { TopBar } from "@/components/top-bar"
 import { Thinking, useThinking } from "@/components/thinking"
+import { LoadToast } from "@/components/toast"
 import { Uploader } from "@/components/uploader"
 import { parseConvention } from "@/lib/llm"
 import { StoreProvider, useStore } from "@/state/store"
@@ -48,7 +50,9 @@ function Screen() {
     [stories]
   )
 
-  const lastBeat = [...state.transcript].reverse().find((e) => e.kind === "beat")
+  const lastBeat = [...state.transcript]
+    .reverse()
+    .find((e) => e.kind === "beat")
   const currentBeat =
     stories && lastBeat ? stories.all[lastBeat.beatId] : undefined
 
@@ -189,6 +193,7 @@ function Screen() {
   return (
     <div className="flex h-svh flex-col bg-background text-foreground">
       <TopBar />
+      <LoadToast at={state.loadedAt} files={state.result?.counts.total ?? 0} />
       <div className="flex min-h-0 flex-1">
         <LeftRail />
         {/* The composer is a fixed bar at the foot of the main region; only
@@ -196,54 +201,87 @@ function Screen() {
             first frame — just the panel changes with the view. */}
         <main className="flex min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-6">
-            <div className="mx-auto w-full max-w-[64rem] space-y-4 py-4">
-              <Tiles
-                compact={state.view !== "upload" && state.view !== "dashboard"}
-              />
-              {state.view === "upload" && <Uploader />}
-              {state.view === "dashboard" && <ReviewTable />}
-              {state.view === "chat" && stories && (
-                <div className="mt-6">
-                  <ChatFeed
-                    beats={stories.all}
-                    onChip={onChip}
-                    thinking={thinking}
-                  />
-                </div>
+            {/* One grid for every view, so the panel keeps the same width
+                whether a repository is loaded or not, and sits a single gap
+                away from the rail beside it. */}
+            <div
+              className={cn(
+                "mx-auto grid w-full max-w-[64rem] gap-4 py-4 xl:max-w-[90rem] xl:grid-cols-[1fr_25rem]",
+                state.view === "upload" && "items-stretch"
               )}
-              {state.view === "manifest" && <ManifestPanel />}
+            >
+              <div
+                className={cn(
+                  "min-w-0",
+                  state.view === "upload" ? "flex flex-col gap-4" : "space-y-4"
+                )}
+              >
+                {/* Tiles stay the first child in every view. Wrapping them in
+                    a fragment on one view and not another remounts them, and a
+                    remounted count starts at its final value instead of
+                    counting up to it. */}
+                <Tiles
+                  compact={
+                    state.view !== "upload" && state.view !== "dashboard"
+                  }
+                />
+                {/* The uploader takes whatever height is left, so if the rail
+                    runs longer than the tiles the two columns still end on the
+                    same line. */}
+                {state.view === "upload" && (
+                  <div className="flex-1">
+                    <Uploader />
+                  </div>
+                )}
+                {state.view === "dashboard" && <ReviewTable />}
+                {state.view === "chat" && stories && (
+                  <div className="mt-6">
+                    <ChatFeed
+                      beats={stories.all}
+                      onChip={onChip}
+                      thinking={thinking}
+                    />
+                  </div>
+                )}
+                {state.view === "manifest" && <ManifestPanel />}
+              </div>
+              <ChangesRail stretch={state.view === "upload"} />
             </div>
           </div>
           <div className="shrink-0 px-6">
-            <div className="mx-auto w-full max-w-[64rem]">
-              {/* Directly above the composer, where the answer is about to
+            {/* On the opening screen the composer sits under the column of
+                cards, not under the whole region: the same grid, so it takes
+                the same left edge and the same width as the boxes above it. */}
+            <div className="mx-auto grid w-full max-w-[64rem] gap-4 xl:max-w-[90rem] xl:grid-cols-[1fr_25rem]">
+              <div className="min-w-0">
+                {/* Directly above the composer, where the answer is about to
                   appear — the same place the eye already is. The spinner and
                   the word, nothing else: no avatar, because this isn't a turn
                   in the conversation yet. */}
-              {state.view === "chat" && thinking && (
-                <div className="animate-in fade-in pt-1 pl-1 duration-200">
-                  <Thinking
-                    label={
-                      state.conventionPending
-                        ? "Reading your convention\u2026"
-                        : undefined
-                    }
-                  />
-                </div>
-              )}
-              <Composer
-                onSay={onSay}
-                suggestion={
-                  state.view === "chat" && !thinking
-                    ? currentBeat?.suggest
-                    : undefined
-                }
-                disabled={!state.result}
-              />
+                {state.view === "chat" && thinking && (
+                  <div className="animate-in pt-1 pl-1 duration-200 fade-in">
+                    <Thinking
+                      label={
+                        state.conventionPending
+                          ? "Reading your convention\u2026"
+                          : undefined
+                      }
+                    />
+                  </div>
+                )}
+                <Composer
+                  onSay={onSay}
+                  suggestion={
+                    state.view === "chat" && !thinking
+                      ? currentBeat?.suggest
+                      : undefined
+                  }
+                  disabled={!state.result}
+                />
+              </div>
             </div>
           </div>
         </main>
-        <ChangesRail />
       </div>
     </div>
   )

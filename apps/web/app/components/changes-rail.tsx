@@ -1,6 +1,7 @@
 import { ArrowUp, Check, Layers, Pencil, X } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
+import { cn } from "@workspace/ui/lib/utils"
 import { ago, initialled, kindOf, VERB, type HistoryKind } from "@/lib/history"
 import { SEEDED_HISTORY } from "@/lib/seed-history"
 import { useAppState } from "@/state/store"
@@ -63,7 +64,7 @@ interface Row {
  * Real changes land on top and push those down as they are made — they are
  * the only rows that exist anywhere else in state.
  */
-export function ChangesRail() {
+export function ChangesRail({ stretch }: { stretch?: boolean } = {}) {
   const { changes } = useAppState()
 
   const latest: Row[] = [
@@ -80,9 +81,20 @@ export function ChangesRail() {
     ...SEEDED_HISTORY.map((row) => ({ ...row, key: row.name })),
   ].slice(0, 6)
 
+  // Always a column of the content grid, so the panel beside it keeps one
+  // width whatever the view is. On the opening screen it stretches to match
+  // that column; over a scrolling panel it keeps its own height and stays put.
   return (
-    <aside className="hidden w-[25rem] shrink-0 py-6 pr-5 pl-2 xl:block">
-      <div className="surface p-5">
+    <aside
+      className={cn(
+        "hidden xl:block",
+        // Sized to its own content and pinned, so it stays on screen while a
+        // long conversation scrolls past it. A stretched grid item has no
+        // room to stick, hence self-start.
+        stretch ? "h-full" : "sticky top-0 self-start"
+      )}
+    >
+      <div className={cn("surface px-5 pt-5 pb-3.5", stretch && "h-full")}>
         <div className="flex items-center justify-between">
           <h2 className="text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
             Latest changes
