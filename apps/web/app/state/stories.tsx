@@ -37,6 +37,27 @@ const WORDS = [
 const spell = (n: number) => WORDS[n] ?? String(n)
 const Spell = ({ n }: { n: number }) => <>{spell(n)}</>
 
+/**
+ * Ways of saying "that one, thanks". The convention step reads anything typed
+ * as a convention, so accepting has to be sayable as well as clickable.
+ */
+const ACCEPT_WORDS = [
+  "use this",
+  "use that",
+  "looks good",
+  "sounds good",
+  "that works",
+  "that's fine",
+  "thats fine",
+  "go ahead",
+  "perfect",
+  "keep it",
+  "accept",
+  "yes",
+  "yep",
+  "okay",
+]
+
 /** Wherever the user said superseded copies go. Never a literal in the copy. */
 const ArchiveFolder = () => {
   const { convention } = useAppState()
@@ -241,7 +262,12 @@ export function buildStories(result: Classification): {
       suggest:
         "Company name, then document type, then the year, separated by dashes - and leave the folders where they are.",
       chips: [
-        { label: "Use this", next: "resume", primary: true },
+        {
+          label: "Use this",
+          next: "resume",
+          primary: true,
+          matchText: ACCEPT_WORDS,
+        },
         {
           label: PRESETS[1]!.label,
           next: "c1set",
@@ -267,10 +293,16 @@ export function buildStories(result: Classification): {
       onFreeText: "c1custom",
       suggest: "Actually, put the date first and use underscores.",
       chips: [
-        { label: "Use this", next: "resume", primary: true },
+        {
+          label: "Use this",
+          next: "resume",
+          primary: true,
+          matchText: ACCEPT_WORDS,
+        },
         {
           label: "Start over",
           next: "c1",
+          matchText: ["start over", "start again", "never mind", "nevermind", "scrap that"],
           effect: setConvention(DEFAULT_CONVENTION, "default"),
         },
       ],
@@ -287,10 +319,16 @@ export function buildStories(result: Classification): {
       readsConvention: true,
       onFreeText: "c1custom",
       chips: [
-        { label: "Use this", next: "resume", primary: true },
+        {
+          label: "Use this",
+          next: "resume",
+          primary: true,
+          matchText: ACCEPT_WORDS,
+        },
         {
           label: "Start over",
           next: "c1",
+          matchText: ["start over", "start again", "never mind", "nevermind", "scrap that"],
           effect: setConvention(DEFAULT_CONVENTION, "default"),
         },
       ],
@@ -624,7 +662,7 @@ export function buildStories(result: Classification): {
       effect: (s) => ({ ...s, escalatedUnknown: allUnknownIds }),
       then: "b5rule",
       thenSay:
-        "Thank you. Also, don't trust FINAL at all. Everyone typed it on everything.",
+        "Also, don't trust FINAL at all. Everyone typed it on everything.",
     },
     {
       id: "b5rule",

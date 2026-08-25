@@ -161,8 +161,14 @@ function Screen() {
     // only place typed content is read rather than just "did they send
     // anything." Everything else stays content-blind on purpose.
     const said = text.toLowerCase()
-    const matched = currentBeat.chips?.find((c) =>
-      c.matchText?.some((k) => said.includes(k))
+    // A beat that reads what was typed only lets a chip's trigger words win
+    // on a short message. "Use this" is an answer; "use this pattern:
+    // Company_Type_Year" is a convention, and has to reach the reader.
+    const brief = said.length <= 40
+    const matched = currentBeat.chips?.find(
+      (c) =>
+        c.matchText?.some((k) => said.includes(k)) &&
+        (brief || !currentBeat.readsConvention)
     )
     const primary = currentBeat.chips?.find((c) => c.primary)
     const fallback = currentBeat.chips?.[0]
