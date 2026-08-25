@@ -6,7 +6,7 @@
  */
 import { Check, Plus } from "lucide-react"
 
-import { useAppState } from "./store"
+import { applyConvention, useAppState } from "./store"
 
 import { classify, type Classification } from "@/lib/classify"
 import {
@@ -18,12 +18,14 @@ import {
   superseded,
 } from "@/lib/ledger"
 import {
+  ConventionCard,
   FileCard,
   Proposal,
   RuleCard,
   SampleList,
   VersionFamily,
 } from "@/components/beats"
+import { DEFAULT_CONVENTION, PRESETS, type Convention } from "@/lib/convention"
 import { Pencil } from "lucide-react"
 import { APPROVER, PARTNER, PARTNER_FIRST_NAME } from "@/lib/people"
 import type { Beat, State, Story } from "./types"
@@ -35,7 +37,14 @@ const WORDS = [
 const spell = (n: number) => WORDS[n] ?? String(n)
 const Spell = ({ n }: { n: number }) => <>{spell(n)}</>
 
+/** Wherever the user said superseded copies go. Never a literal in the copy. */
+const ArchiveFolder = () => {
+  const { convention } = useAppState()
+  return <span className="text-primary">{convention.archive}</span>
+}
+
 export function buildStories(result: Classification): {
+  STORY_C: Beat[]
   STORY_A: Beat[]
   STORY_B: Beat[]
   all: Story
@@ -82,8 +91,16 @@ export function buildStories(result: Classification): {
     const archived = [...s.archived, ...others]
     const at = new Date()
     const changes = [
-      changeFor(focus, APPROVER, archived, at),
-      ...others.map((id) => changeFor(result.byId[id]!, APPROVER, archived, at)),
+      changeFor(focus, APPROVER, archived, at, s.convention.archive),
+      ...others.map((id) =>
+        changeFor(
+          result.byId[id]!,
+          APPROVER,
+          archived,
+          at,
+          s.convention.archive
+        )
+      ),
     ]
     return {
       ...s,
@@ -159,6 +176,128 @@ export function buildStories(result: Classification): {
   }
 
   /* ---------------------------------------------------------------- */
+  /* The convention step — before anything is renamed                 */
+  /* ---------------------------------------------------------------- */
+
+  /** Adopt a convention and re-render every proposed name under it. */
+  const setConvention =
+    (
+      convention: Convention,
+      via: State["conventionVia"],
+      notes: string[] = []
+    ) =>
+    (s: State): State =>
+      applyConvention(s, convention, via, notes)
+
+  /**
+   * Reached only when a story that has already been walked is asked for
+   * again. A demo that replays records the same decision twice and shows the
+   * same file as if it were new, which is worse than saying so.
+   */
+  function AlreadyDone() {
+    const { done, piles, changes } = useAppState()
+    const which = done.A && done.B ? "both of those" : "that one"
+    return (
+      <>
+        <p>
+          We&rsquo;ve already been through {which}.{" "}
+          {changes.length > 0 && (
+            <>
+              <Spell n={changes.length} />{" "}
+              {changes.length === 1 ? "decision is" : "decisions are"} recorded
+              and still hold, so I&rsquo;m not going to run it again and write
+              the same ones down twice.
+            </>
+          )}
+        </p>
+        <p className="mt-2">
+          What&rsquo;s left is {piles.ready} ready to apply and {piles.review}{" "}
+          still needing a decision.
+        </p>
+      </>
+    )
+  }
+
+  const STORY_C: Beat[] = [
+    {
+      id: "c1",
+      actor: "assistant",
+      content: (
+        <>
+          <p>
+            Before I rename anything - what should the names look like? This is
+            the convention all {result.counts.total} files get held to, so it
+            should be yours, not mine. Here&rsquo;s what I&rsquo;d suggest, from
+            what&rsquo;s already in your filenames. Change any of it, or just
+            tell me in your own words.
+          </p>
+          <ConventionCard />
+        </>
+      ),
+      // Typing is the point of this step: whatever is written here gets read
+      // as a convention rather than treated as agreement with mine.
+      readsConvention: true,
+      onFreeText: "c1custom",
+      suggest:
+        "Company name, then document type, then the year, separated by dashes - and leave the folders where they are.",
+      chips: [
+        { label: "Use this", next: "resume", primary: true },
+        {
+          label: PRESETS[1]!.label,
+          next: "c1set",
+          effect: setConvention(PRESETS[1]!.convention, "preset"),
+        },
+        {
+          label: PRESETS[2]!.label,
+          next: "c1set",
+          effect: setConvention(PRESETS[2]!.convention, "preset"),
+        },
+      ],
+    },
+    {
+      id: "c1set",
+      actor: "assistant",
+      content: (
+        <>
+          <p>Set. Every proposed name in this session now reads like this:</p>
+          <ConventionCard />
+        </>
+      ),
+      readsConvention: true,
+      onFreeText: "c1custom",
+      suggest: "Actually, put the date first and use underscores.",
+      chips: [
+        { label: "Use this", next: "resume", primary: true },
+        {
+          label: "Start over",
+          next: "c1",
+          effect: setConvention(DEFAULT_CONVENTION, "default"),
+        },
+      ],
+    },
+    {
+      id: "c1custom",
+      actor: "assistant",
+      content: (
+        <>
+          <p>Here&rsquo;s how I read that:</p>
+          <ConventionCard />
+        </>
+      ),
+      readsConvention: true,
+      onFreeText: "c1custom",
+      chips: [
+        { label: "Use this", next: "resume", primary: true },
+        {
+          label: "Start over",
+          next: "c1",
+          effect: setConvention(DEFAULT_CONVENTION, "default"),
+        },
+      ],
+    },
+  ]
+
+  /* ---------------------------------------------------------------- */
   /* Story A — one file, in depth                                     */
   /* ---------------------------------------------------------------- */
 
@@ -185,8 +324,8 @@ export function buildStories(result: Classification): {
         <>
           <p>
             There are <Spell n={fam?.memberIds.length ?? 0} /> versions of this{" "}
-            {fam?.docType} and <Spell n={fam?.largestIdenticalGroup ?? 0} /> share
-            identical text. The filename says FINAL_v2, but nothing in the
+            {fam?.docType} and <Spell n={fam?.largestIdenticalGroup ?? 0} />{" "}
+            share identical text. The filename says FINAL_v2, but nothing in the
             contents confirms it was the one signed, so I&rsquo;d only be
             trusting whoever typed the filename.
           </p>
@@ -217,8 +356,8 @@ export function buildStories(result: Classification): {
       actor: "assistant",
       content: (
         <p>
-          Rejected - left exactly as it was, nothing renamed. Do you want to send
-          it to someone, or move on?
+          Rejected - left exactly as it was, nothing renamed. Do you want to
+          send it to someone, or move on?
         </p>
       ),
       chips: [
@@ -246,10 +385,10 @@ export function buildStories(result: Classification): {
       content: (
         <p>
           Approved. I&rsquo;ll archive them rather than delete though - the
-          other <Spell n={others.length} /> move to{" "}
-          <span className="text-primary">/Archive</span>, each pointing at the
-          copy you kept. If this turns out to be the wrong version it&rsquo;s
-          reversible. Say the word if you genuinely want them gone.
+          other <Spell n={others.length} /> move to <ArchiveFolder />, each
+          pointing at the copy you kept. If this turns out to be the wrong
+          version it&rsquo;s reversible. Say the word if you genuinely want them
+          gone.
         </p>
       ),
       suggest: "No that's fine, archive is better.",
@@ -265,8 +404,8 @@ export function buildStories(result: Classification): {
       content: (
         <>
           <p>
-            These <Spell n={others.length} /> move to /Archive. Each keeps its
-            original name and points at the copy you kept.
+            These <Spell n={others.length} /> move to <ArchiveFolder />. Each
+            keeps its original name and points at the copy you kept.
           </p>
           {others.map((id) => {
             const d = result.byId[id]
@@ -287,10 +426,10 @@ export function buildStories(result: Classification): {
           I can&rsquo;t do that from here - this tool renames and moves, it
           doesn&rsquo;t delete, and I&rsquo;d rather it stayed that way while
           we&rsquo;re working through {result.counts.total} files on filename
-          evidence. What I&rsquo;ll do instead is archive the {others.length} and
-          flag them for deletion by whoever owns the repository, so it&rsquo;s
-          one deliberate action by a person rather than a side effect of this
-          conversation.
+          evidence. What I&rsquo;ll do instead is archive the {others.length}{" "}
+          and flag them for deletion by whoever owns the repository, so
+          it&rsquo;s one deliberate action by a person rather than a side effect
+          of this conversation.
         </p>
       ),
       chips: [{ label: "That's fine", next: "a5", primary: true }],
@@ -304,8 +443,8 @@ export function buildStories(result: Classification): {
             <Check className="mt-0.5 size-4 shrink-0" />
             <span>
               {focus?.proposedName} approved.{" "}
-              <span className="capitalize">{spell(others.length)}</span> versions
-              archived.
+              <span className="capitalize">{spell(others.length)}</span>{" "}
+              versions archived.
             </span>
           </p>
           <p className="mt-2">
@@ -328,7 +467,11 @@ export function buildStories(result: Classification): {
       content: <TrustRuleCopy result={result} />,
       effect: applyTrustRule,
       chips: [
-        { label: `Show me all ${result.counts.ready}`, next: "b1", primary: true },
+        {
+          label: `Show me all ${result.counts.ready}`,
+          next: "b1",
+          primary: true,
+        },
         { label: "Next one", next: "a1" },
       ],
     },
@@ -348,8 +491,8 @@ export function buildStories(result: Classification): {
       <>
         <p>
           You&rsquo;re right, that one shouldn&rsquo;t be in this group.
-          It&rsquo;s got a date and a type but no counterparty, so it belongs
-          in the can&rsquo;t-identify pile. Moving it, and checking the other{" "}
+          It&rsquo;s got a date and a type but no counterparty, so it belongs in
+          the can&rsquo;t-identify pile. Moving it, and checking the other{" "}
           {result.counts.ready - 1} for the same mistake.
         </p>
         {spottedId && (
@@ -379,13 +522,17 @@ export function buildStories(result: Classification): {
       actor: "assistant",
       content: (
         <p>
-          I&rsquo;ve read all {result.counts.total} files and sorted them by
-          how confident I am. How can I help you get through them?
+          I&rsquo;ve read all {result.counts.total} files and sorted them by how
+          confident I am. How can I help you get through them?
         </p>
       ),
       suggest: `Okay let's start, what about the ${result.counts.ready} you said were fine? Let's review those.`,
       chips: [
-        { label: `Start with the ${result.counts.ready}`, next: "b2", primary: true },
+        {
+          label: `Start with the ${result.counts.ready}`,
+          next: "b2",
+          primary: true,
+        },
         { label: `Review the ${result.counts.review}`, next: "a1" },
         { label: "Show me what you couldn't identify", next: "dashboard" },
       ],
@@ -464,9 +611,9 @@ export function buildStories(result: Classification): {
       content: (
         <>
           <p>
-            Sending them to {PARTNER}. She&rsquo;ll get all the files without
-            a company name, {unknownAfterB} files, each with what I found and
-            why I couldn&rsquo;t call it.
+            Sending them to {PARTNER}. She&rsquo;ll get all the files without a
+            company name, {unknownAfterB} files, each with what I found and why
+            I couldn&rsquo;t call it.
           </p>
           <p className="mt-3 flex items-center gap-2 font-medium text-ok">
             <Check className="size-4 shrink-0" />
@@ -486,10 +633,10 @@ export function buildStories(result: Classification): {
         <>
           <p>
             Applied as a rule and re-run. {finalRuleImpact.changedProposals}{" "}
-            proposals changed. {finalRuleImpact.easier} of the status
-            conflicts resolve cleanly - but {finalRuleImpact.affectedFamilies}{" "}
-            version families now have no clear final at all, because FINAL
-            was the only thing separating them.
+            proposals changed. {finalRuleImpact.easier} of the status conflicts
+            resolve cleanly - but {finalRuleImpact.affectedFamilies} version
+            families now have no clear final at all, because FINAL was the only
+            thing separating them.
           </p>
           <p className="mt-2">
             Your rule made {finalRuleImpact.easier} files easier and{" "}
@@ -502,7 +649,11 @@ export function buildStories(result: Classification): {
           </p>
         </>
       ),
-      effect: (s) => ({ ...s, finalRuleApplied: true }),
+      effect: (s) => ({
+        ...s,
+        finalRuleApplied: true,
+        done: { ...s.done, B: true },
+      }),
       suggest: "Good, apply everything and show me the manifest.",
       chips: [
         { label: "Apply everything", next: "manifest", primary: true },
@@ -523,26 +674,41 @@ export function buildStories(result: Classification): {
     },
   ]
 
+  /** Not part of either story: where a finished one sends you instead. */
+  const AGAIN: Beat[] = [
+    {
+      id: "again",
+      actor: "assistant",
+      content: <AlreadyDone />,
+      suggest: "Fine - apply everything and show me the manifest.",
+      chips: [
+        { label: "Apply everything", next: "manifest", primary: true },
+        { label: "Back to the dashboard", next: "dashboard" },
+      ],
+    },
+  ]
+
   const all: Story = {}
-  for (const b of [...STORY_A, ...STORY_B]) all[b.id] = b
-  return { STORY_A, STORY_B, all }
+  for (const b of [...STORY_C, ...STORY_A, ...STORY_B, ...AGAIN]) all[b.id] = b
+  return { STORY_C, STORY_A, STORY_B, all }
 }
 
 /* ------------------------------------------------------------------ */
 
 function classifyTrusting(s: State): number {
-  return classify(s.rows, { trustFinal: true }).counts.review
+  return classify(s.rows, { trustFinal: true, convention: s.convention }).counts
+    .review
 }
 
 function TrustRuleCopy({ result }: { result: Classification }) {
   return (
     <p>
-      Rule set: where a filename says FINAL and nothing in the family contradicts
-      it, I&rsquo;ll treat that as the operative version instead of asking. That
-      moves work out of Needs review, and it means you are trusting whoever typed
-      the filename - which is the thing we just spent {result.counts.review > 0 ? "a file" : "time"}{" "}
-      establishing you can&rsquo;t always do. You can turn it off in the
-      manifest.
+      Rule set: where a filename says FINAL and nothing in the family
+      contradicts it, I&rsquo;ll treat that as the operative version instead of
+      asking. That moves work out of Needs review, and it means you are trusting
+      whoever typed the filename - which is the thing we just spent{" "}
+      {result.counts.review > 0 ? "a file" : "time"} establishing you
+      can&rsquo;t always do. You can turn it off in the manifest.
     </p>
   )
 }
@@ -578,8 +744,12 @@ export function applyEverything(result: Classification) {
       archived,
       changes: [
         ...s.changes,
-        ...pendingReady.map((d) => changeFor(d, "Assistant", archived, at)),
-        ...pendingDecided.map((d) => changeFor(d, APPROVER, archived, at)),
+        ...pendingReady.map((d) =>
+          changeFor(d, "Assistant", archived, at, s.convention.archive)
+        ),
+        ...pendingDecided.map((d) =>
+          changeFor(d, APPROVER, archived, at, s.convention.archive)
+        ),
       ],
       resolved: s.resolved + pendingReady.length + pendingDecided.length,
       piles: {

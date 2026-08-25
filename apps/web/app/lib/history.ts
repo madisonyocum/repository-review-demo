@@ -21,7 +21,7 @@ export const VERB: Record<HistoryKind, string> = {
   archived: "superseded copy archived by",
 }
 
-/** "Jonathan Sayer" reads as "Jonathan S.", as in the design. */
+/** "Brendan Walsh" reads as "Brendan W.", as in the design. */
 export function initialled(name: string): string {
   const parts = name
     .replace(/\s*\(open\)\s*/, "")

@@ -13,6 +13,13 @@
  *   ready   ("Ready to apply")  everything else
  */
 
+import {
+  DEFAULT_CONVENTION,
+  formatName,
+  formatPath,
+  type Convention,
+} from "./convention"
+
 export type DocType =
   | "MSA"
   | "SOW"
@@ -93,6 +100,8 @@ export interface Counts {
 
 export interface Classification {
   docs: Doc[]
+  /** The convention every proposedName in here was rendered under. */
+  convention: Convention
   byId: Record<string, Doc>
   families: Record<string, Family>
   counts: Counts
@@ -396,46 +405,6 @@ function findVersion(filename: string): number | null {
 const anyOf = (res: RegExp[], t: string) => res.some((r) => r.test(t))
 
 /* ------------------------------------------------------------------ */
-/* Naming                                                              */
-/* ------------------------------------------------------------------ */
-
-function pascal(name: string): string {
-  return name
-    .split(/[^A-Za-z0-9]+/)
-    .filter(Boolean)
-    .map((w) => w[0]!.toUpperCase() + w.slice(1))
-    .join("")
-}
-
-function proposeName(d: {
-  counterparty: string | null
-  docType: DocType | null
-  dateModified: string
-  version: number | null
-  fileType: string
-  filename: string
-}): string {
-  if (!d.counterparty || !d.docType) return d.filename
-  const parts = [pascal(d.counterparty), d.docType, d.dateModified]
-  if (d.version && d.version > 1) parts.push(`v${d.version}`)
-  return `${parts.join("_")}.${d.fileType}`
-}
-
-const PATH_FOR: Record<DocType, string> = {
-  MSA: "/Legal/Contracts/Master Agreements",
-  SOW: "/Legal/Contracts/Statements of Work",
-  NDA: "/Legal/NDAs",
-  DPA: "/Legal/Data Protection",
-  Lease: "/Legal/Property",
-  Employment: "/Legal/People",
-  License: "/Legal/Licensing",
-  Purchase: "/Legal/Commercial",
-  Supply: "/Legal/Commercial",
-  Partnership: "/Legal/Partnerships",
-  Amendment: "/Legal/Amendments",
-}
-
-/* ------------------------------------------------------------------ */
 /* Classify                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -455,12 +424,19 @@ export interface ClassifyOptions {
    * re-run the whole classification under the new rule.
    */
   distrustFinal?: boolean
+  /**
+   * How a new name is written. The user's decision, not the product's — see
+   * `lib/convention.ts`. It changes what every file is *called*, and nothing
+   * about which pile it lands in.
+   */
+  convention?: Convention
 }
 
 export function classify(
   rows: RawRow[],
   options: ClassifyOptions = { trustFinal: false }
 ): Classification {
+  const convention = options.convention ?? DEFAULT_CONVENTION
   const docs: Doc[] = rows.map((r) => {
     const stem = r.filename.replace(/\.[A-Za-z0-9]+$/, "")
     const nameCp = findCounterparty(r.filename)
@@ -511,15 +487,21 @@ export function classify(
       bucket: "unknown",
       reason: "",
       confidence: "Medium",
-      proposedName: proposeName({
-        counterparty,
-        docType,
-        dateModified: r.date_modified,
-        version,
-        fileType: r.file_type,
-        filename: r.filename,
-      }),
-      proposedPath: docType ? PATH_FOR[docType] : r.folder_path,
+      proposedName: formatName(
+        {
+          counterparty,
+          docType,
+          dateModified: r.date_modified,
+          version,
+          fileType: r.file_type,
+          filename: r.filename,
+        },
+        convention
+      ),
+      proposedPath: formatPath(
+        { docType, counterparty, folderPath: r.folder_path },
+        convention
+      ),
       operative: false,
       weakGrouping: contentsCp !== null,
     } satisfies Doc
@@ -542,14 +524,12 @@ export function classify(
     const largest = Math.max(...Object.values(identical))
     const operative = pickOperative(members)
     operative.operative = true
-    operative.proposedName = proposeName({
-      counterparty: operative.counterparty,
-      docType: operative.docType,
-      dateModified: operative.dateModified,
-      version: null,
-      fileType: operative.fileType,
-      filename: operative.filename,
-    })
+    // The operative copy is named without a version number: it is the one
+    // that survives, so there is nothing left to tell it apart from.
+    operative.proposedName = formatName(
+      { ...operative, version: null },
+      convention
+    )
     families[key] = {
       key,
       counterparty: members[0]!.counterparty!,
@@ -632,6 +612,7 @@ export function classify(
 
   return {
     docs,
+    convention,
     byId,
     families,
     counts,

@@ -3,6 +3,7 @@
  * says, and how the random sample is drawn. All derived, none of it hardcoded.
  */
 import { classify, type Classification, type Doc } from "./classify"
+import { DEFAULT_CONVENTION } from "./convention"
 import type { Change, ChangeAction } from "@/state/types"
 
 /**
@@ -37,7 +38,8 @@ export function superseded(result: Classification): Doc[] {
   })
 }
 
-export const ARCHIVE = "/Archive"
+/** Only a default. The live one is whatever the user set — `state.convention`. */
+export const ARCHIVE = DEFAULT_CONVENTION.archive
 
 export function actionFor(d: Doc, archivedIds: string[]): ChangeAction {
   if (archivedIds.includes(d.id)) return "supersede"
@@ -54,7 +56,8 @@ export function changeFor(
   d: Doc,
   approvedBy: string,
   archivedIds: string[],
-  at = new Date()
+  at = new Date(),
+  archive: string = ARCHIVE
 ): Change {
   const action = actionFor(d, archivedIds)
   const isArchive = action === "supersede"
@@ -64,7 +67,7 @@ export function changeFor(
     oldName: d.filename,
     newName: noop ? d.filename : d.proposedName,
     oldPath: d.folderPath,
-    newPath: isArchive ? ARCHIVE : noop ? d.folderPath : d.proposedPath,
+    newPath: isArchive ? archive : noop ? d.folderPath : d.proposedPath,
     action,
     reason: d.reason,
     approvedBy,
@@ -152,7 +155,12 @@ export function distrustFinalImpact(
   rows: Parameters<typeof classify>[0],
   baseline: Classification
 ): FinalRuleImpact {
-  const distrusted = classify(rows, { trustFinal: false, distrustFinal: true })
+  // Same convention, so the only differences counted below are the rule's.
+  const distrusted = classify(rows, {
+    trustFinal: false,
+    distrustFinal: true,
+    convention: baseline.convention,
+  })
 
   let changedProposals = 0
   let easier = 0

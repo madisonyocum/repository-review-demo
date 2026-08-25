@@ -2,7 +2,7 @@ import { AlertTriangle, Ban, Check } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import { cn } from "@workspace/ui/lib/utils"
-import { useAppState } from "@/state/store"
+import { useAppState, useStore } from "@/state/store"
 import type { Piles } from "@/state/types"
 import { AnimatedCount } from "./animated-count"
 
@@ -38,20 +38,26 @@ const GROUPS: {
 
 /** Always present. Zeroed until a repository is loaded. */
 export function LeftRail() {
-  const { piles, bumped } = useAppState()
+  const { piles, bumped, result } = useAppState()
+  const { dispatch } = useStore()
 
   return (
     <aside className="w-[14rem] shrink-0 py-6 pr-2 pl-4">
       <nav className="space-y-1">
-        {["Overview", "All documents", "Activity"].map((item, i) => (
+        {/* Overview goes back to the dashboard. The other two aren't wired to
+            anything, so they don't pretend to be: no pointer, no hover. */}
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "view", view: "dashboard" })}
+          disabled={!result}
+          className="flex h-10 w-full cursor-pointer items-center rounded-[0.625rem] bg-primary/8 px-3.5 text-left text-[0.9375rem] font-medium text-primary transition-colors hover:bg-primary/12 disabled:cursor-default disabled:hover:bg-primary/8"
+        >
+          Overview
+        </button>
+        {["All documents", "Activity"].map((item) => (
           <span
             key={item}
-            className={cn(
-              "flex h-10 items-center rounded-[0.625rem] px-3.5 text-[0.9375rem]",
-              i === 0
-                ? "bg-primary/8 font-medium text-primary"
-                : "text-muted-foreground"
-            )}
+            className="flex h-10 items-center rounded-[0.625rem] px-3.5 text-[0.9375rem] text-muted-foreground"
           >
             {item}
           </span>

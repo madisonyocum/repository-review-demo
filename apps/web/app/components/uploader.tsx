@@ -54,7 +54,7 @@ export function Uploader() {
         over && "border-ring/50 bg-secondary"
       )}
     >
-      <h1 className="text-base font-semibold">Point me at a repository</h1>
+      <h1 className="text-base font-normal">Point me at a repository</h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
         A CSV export of the folder - file name, path, type, size, date
         modified, contents. Nothing leaves this browser.
@@ -76,10 +76,6 @@ export function Uploader() {
         <Button variant="outline" onClick={() => input.current?.click()}>
           <FileText data-icon="inline-start" /> Choose a file
         </Button>
-        <p className="text-xs text-muted-foreground">
-          or drop a CSV here &middot; the bundled sample is{" "}
-          {SAMPLE_ROWS.length} files
-        </p>
       </div>
 
       <input

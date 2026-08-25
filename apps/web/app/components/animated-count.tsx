@@ -77,7 +77,7 @@ export function AnimatedCount({
   return (
     <span
       className={cn(
-        "inline-block tabular-nums transition-transform duration-300 ease-out",
+        "numeric inline-block transition-transform duration-300 ease-out",
         pulsing && "scale-115",
         className
       )}

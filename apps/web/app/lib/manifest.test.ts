@@ -115,7 +115,7 @@ describe("manifest", () => {
         newPath: "/Legal/Contracts",
         action: "rename+move",
         reason: "Comma, and a quote: \"final\"",
-        approvedBy: "Jonathan Sayer",
+        approvedBy: "Brendan Walsh",
         approvedAt: "2026-08-25T00:00:00.000Z",
       },
     ])

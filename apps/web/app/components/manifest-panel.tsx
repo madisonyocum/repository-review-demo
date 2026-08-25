@@ -47,7 +47,7 @@ export function ManifestPanel() {
       label: "renamed after your decisions",
       sub: `of which ${archived.length} superseded ${
         archived.length === 1 ? "copy" : "copies"
-      } moved to /Archive`,
+      } moved to ${state.convention.archive}`,
       tone: "text-ok",
     },
     {
@@ -75,18 +75,25 @@ export function ManifestPanel() {
         <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
           Manifest
         </p>
-        <h1 className="mt-1 text-lg font-semibold">
-          {result.counts.total} files, accounted for
+        {/* The treatment every count in the product carries — the text face,
+            tabular figures, set solid, semibold — at the size the tiles use,
+            so the total heads the panel rather than sitting level with the
+            four figures that add up to it. */}
+        <h1 className="numeric mt-1 text-3xl leading-none font-semibold">
+          {result.counts.total} files total
         </h1>
 
         {/* Same type scale as the tiles: a large tabular number carrying the
             colour, the claim in body text, the qualifier one step down. */}
         <dl className="mt-4 divide-y divide-border/60 border-y border-border/60">
           {ledger.map(({ n, label, sub, tone }) => (
-            <div key={label} className="flex items-baseline gap-4 py-3.5">
+            <div key={label} className="flex items-center gap-3 py-3.5">
               <dt
                 className={cn(
-                  "w-12 shrink-0 text-2xl font-semibold tabular-nums",
+                  // Left-aligned, sized to its own digits: the figure and
+                  // the line it labels stay one pair, centred on each other,
+                  // rather than a column with a gap in the middle.
+                  "numeric shrink-0 text-2xl font-semibold",
                   tone
                 )}
               >
@@ -127,8 +134,9 @@ export function ManifestPanel() {
       <section className="surface overflow-hidden">
         <div className="border-b border-border/60 px-6 py-3.5">
           <p className="text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
-            manifest.csv &middot; {rows.length} rows &middot;{" "}
-            {MANIFEST_COLUMNS.length} columns
+            manifest.csv &middot; <span className="numeric">{rows.length}</span>{" "}
+            rows &middot;{" "}
+            <span className="numeric">{MANIFEST_COLUMNS.length}</span> columns
           </p>
         </div>
         <table className="w-full text-left text-xs text-muted-foreground">

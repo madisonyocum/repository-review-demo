@@ -72,7 +72,13 @@ export function buildManifest(state: State): Change[] {
     }
 
     const approver = decidedIds.has(d.id) ? APPROVER : "Assistant"
-    return changeFor(d, approver, state.archived)
+    return changeFor(
+      d,
+      approver,
+      state.archived,
+      new Date(),
+      state.convention.archive
+    )
   }
 
   return result.docs.map(rowFor)

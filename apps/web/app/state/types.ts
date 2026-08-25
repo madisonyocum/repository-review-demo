@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
 import type { Classification, RawRow } from "@/lib/classify"
+import type { Convention, ConventionParse } from "@/lib/convention"
 
 export type View = "upload" | "dashboard" | "chat" | "manifest"
 
@@ -40,6 +41,22 @@ export interface State {
   /** Pile keys whose number changed on the last transition, for the scale bump. */
   bumped: (keyof Piles)[]
   storyId: StoryId | null
+  /**
+   * How this repository gets renamed. The user's decision — the assistant
+   * opens with a proposal and nothing is applied until it is confirmed.
+   */
+  convention: Convention
+  conventionConfirmed: boolean
+  /** Which reader produced the current convention, for the UI to own up to. */
+  conventionVia: "default" | "preset" | ConventionParse["via"]
+  conventionNotes: string[]
+  /** A typed convention is being read right now — the chat shows it thinking. */
+  conventionPending: boolean
+  /**
+   * The beat the conversation was heading for when the convention step
+   * interrupted it. "resume" goes here.
+   */
+  pendingBeat: string | null
   transcript: Entry[]
   changes: Change[]
   sample: string[]
@@ -56,8 +73,19 @@ export interface State {
 
 export type StoryId = "A" | "B"
 
+/**
+ * What the convention was when a given turn was said. The transcript is a
+ * record: a card in an earlier turn has to keep showing what was on screen
+ * then, not quietly restate whatever was decided afterwards.
+ */
+export interface ConventionSnapshot {
+  convention: Convention
+  via: State["conventionVia"]
+  notes: string[]
+}
+
 export type Entry =
-  | { kind: "beat"; beatId: string; at: number }
+  | { kind: "beat"; beatId: string; at: number; shown?: ConventionSnapshot }
   | { kind: "user"; text: string; at: number }
 
 export interface Chip {
@@ -87,6 +115,12 @@ export interface Chip {
    * pre-filled suggestion has somewhere correct to go via the primary flag.
    */
   style?: "button" | "link" | "hidden"
+  /**
+   * Applied on top of the destination beat's own effect. Lets several chips
+   * share one destination and still do different things — the convention
+   * presets all land on the same beat, each having set a different one.
+   */
+  effect?: (s: State) => State
 }
 
 export interface Beat {
@@ -108,6 +142,17 @@ export interface Beat {
    * a presenter can just press send — editable, and never required.
    */
   suggest?: string
+  /**
+   * Where free text goes, when that is somewhere other than the primary chip.
+   * The convention step needs this: its primary action is [Use this], but
+   * anything typed is a convention to be read, not an acceptance of ours.
+   */
+  onFreeText?: string
+  /**
+   * This beat's typed line is a naming convention — read it (with Claude if
+   * there's a key, locally otherwise) and apply the result.
+   */
+  readsConvention?: boolean
 }
 
 export type Story = Record<string, Beat>

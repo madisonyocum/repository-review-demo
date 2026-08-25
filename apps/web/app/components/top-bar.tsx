@@ -2,6 +2,7 @@ import { ChevronDown, Search, Undo2 } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
+import { APPROVER_INITIALS } from "@/lib/people"
 import { useStore } from "@/state/store"
 import { AnimatedCount } from "./animated-count"
 import { Sparkle } from "./icons"
@@ -17,7 +18,8 @@ export function TopBar() {
         type="button"
         onClick={() => dispatch({ type: "view", view: "dashboard" })}
         disabled={!state.result}
-        className="flex items-center gap-2.5 disabled:cursor-default"
+        title="Back to the dashboard"
+        className="flex cursor-pointer items-center gap-2.5 rounded-[0.6rem] transition-opacity hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100"
       >
         <span className="flex size-8 items-center justify-center rounded-[0.6rem] bg-primary text-primary-foreground">
           <Sparkle className="size-4" />
@@ -76,7 +78,7 @@ export function TopBar() {
           <Search />
         </Button>
         <span className="ml-1 flex size-9 items-center justify-center rounded-full bg-secondary text-xs font-medium text-foreground">
-          JS
+          {APPROVER_INITIALS}
         </span>
       </div>
     </header>

@@ -8,7 +8,8 @@ import {
 } from "react"
 
 import { classify, type RawRow } from "@/lib/classify"
-import { drawSample } from "@/lib/ledger"
+import { DEFAULT_CONVENTION, type Convention } from "@/lib/convention"
+import { changeFor, drawSample } from "@/lib/ledger"
 import type { Piles, State, StoryId, View } from "./types"
 
 const EMPTY_PILES: Piles = { ready: 0, review: 0, withPartner: 0, unknown: 0 }
@@ -22,6 +23,12 @@ export const initialState: State = {
   resolved: 0,
   bumped: [],
   storyId: null,
+  convention: DEFAULT_CONVENTION,
+  conventionConfirmed: false,
+  conventionVia: "default",
+  conventionNotes: [],
+  conventionPending: false,
+  pendingBeat: null,
   transcript: [],
   changes: [],
   sample: [],
@@ -40,9 +47,36 @@ export type Action =
   | { type: "story"; id: StoryId; firstBeat: string }
   | { type: "beat"; beatId: string; effect?: (s: State) => State }
   | { type: "say"; text: string }
+  | { type: "convention-pending" }
+  | {
+      type: "convention"
+      convention: Convention
+      via: State["conventionVia"]
+      notes: string[]
+    }
   | { type: "reseed" }
   | { type: "commit"; effect: (s: State) => State; view: View }
   | { type: "reset" }
+
+/**
+ * Stamp the newest beat with the convention it is being shown under, so the
+ * card in that turn stays what it was when it was said.
+ */
+function stamp(s: State): State {
+  const i = s.transcript.length - 1
+  const last = s.transcript[i]
+  if (!last || last.kind !== "beat") return s
+  const transcript = [...s.transcript]
+  transcript[i] = {
+    ...last,
+    shown: {
+      convention: s.convention,
+      via: s.conventionVia,
+      notes: s.conventionNotes,
+    },
+  }
+  return { ...s, transcript }
+}
 
 /** Which pile numbers moved, so the tiles know what to animate. */
 function diffPiles(before: Piles, after: Piles): (keyof Piles)[] {
@@ -54,7 +88,10 @@ function diffPiles(before: Piles, after: Piles): (keyof Piles)[] {
 function reduce(state: State, action: Action): State {
   switch (action.type) {
     case "load": {
-      const result = classify(action.rows, { trustFinal: false })
+      const result = classify(action.rows, {
+        trustFinal: false,
+        convention: initialState.convention,
+      })
       // The real numbers, for anyone who wants to check the screen against them.
       console.log("[classify]", result.counts, {
         families: Object.keys(result.families).length,
@@ -79,19 +116,29 @@ function reduce(state: State, action: Action): State {
     }
     case "view":
       return { ...state, view: action.view, bumped: [] }
-    case "story":
+    case "story": {
       // Entering a story from the dashboard always starts its transcript
       // fresh, whether this is the first visit or a return trip after
       // backing out — otherwise the previous run's turns stick around and
       // the same opening beat lands twice in a row. Piles, changes and
       // everything else in state carries over untouched.
-      return {
+      // A story that has already been walked doesn't get walked again.
+      const wanted =
+        (action.id === "A" && state.done.A) || (action.id === "B" && state.done.B)
+          ? "again"
+          : action.firstBeat
+      // Until the convention is settled, every route into the conversation
+      // lands on the convention step first and remembers where it was going.
+      const first = state.conventionConfirmed ? wanted : "c1"
+      return stamp({
         ...state,
         view: "chat",
         storyId: action.id,
         bumped: [],
-        transcript: [{ kind: "beat", beatId: action.firstBeat, at: Date.now() }],
-      }
+        pendingBeat: wanted,
+        transcript: [{ kind: "beat", beatId: first, at: Date.now() }],
+      })
+    }
     case "beat": {
       const withBeat: State = {
         ...state,
@@ -102,7 +149,7 @@ function reduce(state: State, action: Action): State {
         ],
         bumped: [],
       }
-      const next = action.effect ? action.effect(withBeat) : withBeat
+      const next = stamp(action.effect ? action.effect(withBeat) : withBeat)
       return { ...next, bumped: diffPiles(state.piles, next.piles) }
     }
     case "say":
@@ -114,6 +161,10 @@ function reduce(state: State, action: Action): State {
         ],
         bumped: [],
       }
+    case "convention-pending":
+      return { ...state, conventionPending: true }
+    case "convention":
+      return applyConvention(state, action.convention, action.via, action.notes)
     case "commit": {
       const next = action.effect(state)
       return {
@@ -132,6 +183,58 @@ function reduce(state: State, action: Action): State {
     case "reset":
       return initialState
   }
+}
+
+/**
+ * Adopt a naming convention: re-run the classification under it so every
+ * proposed name on screen is the user's convention rather than ours, and
+ * re-render any change already recorded. Which pile a file is in cannot move
+ * here — a convention decides what a file is *called*, never what is known
+ * about it — so the counts are deliberately left alone.
+ */
+export function applyConvention(
+  state: State,
+  convention: Convention,
+  via: State["conventionVia"],
+  notes: string[]
+): State {
+  if (!state.result) {
+    return stamp({
+      ...state,
+      convention,
+      conventionVia: via,
+      conventionNotes: notes,
+      conventionPending: false,
+    })
+  }
+  const result = classify(state.rows, {
+    trustFinal: state.trustFinal,
+    convention,
+  })
+  const changes = state.changes.map((c) => {
+    const doc = result.byId[c.fileId]
+    if (!doc || c.action === "no-action") return c
+    return {
+      ...c,
+      newName: doc.proposedName,
+      newPath:
+        c.action === "supersede"
+          ? convention.archive
+          : changeFor(doc, c.approvedBy, [], new Date(), convention.archive)
+              .newPath,
+    }
+  })
+  // The turn that is showing the card is the one that just asked about it,
+  // so it gets re-stamped with what was actually read.
+  return stamp({
+    ...state,
+    convention,
+    conventionVia: via,
+    conventionNotes: notes,
+    conventionPending: false,
+    result,
+    changes,
+  })
 }
 
 interface History {
@@ -158,6 +261,9 @@ function historyReducer(
   // Loading a repository starts a fresh history; there is nothing behind it.
   if (action.type === "load" || action.type === "reset")
     return { past: [], present }
+  // "It's reading that now" is not a step in the conversation, so Undo
+  // shouldn't stop on it.
+  if (action.type === "convention-pending") return { ...history, present }
   return { past: [...history.past, history.present], present }
 }
 
