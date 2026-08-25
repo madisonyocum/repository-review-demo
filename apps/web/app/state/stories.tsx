@@ -9,7 +9,14 @@ import { Check, Plus } from "lucide-react"
 import { useAppState } from "./store"
 
 import { classify, type Classification } from "@/lib/classify"
-import { changeFor, decided, drawSample, escalated, superseded } from "@/lib/ledger"
+import {
+  changeFor,
+  decided,
+  distrustFinalImpact,
+  drawSample,
+  escalated,
+  superseded,
+} from "@/lib/ledger"
 import {
   FileCard,
   Proposal,
@@ -17,6 +24,7 @@ import {
   SampleList,
   VersionFamily,
 } from "@/components/beats"
+import { Pencil } from "lucide-react"
 import { APPROVER, PARTNER, PARTNER_FIRST_NAME } from "@/lib/people"
 import type { Beat, State, Story } from "./types"
 
@@ -40,6 +48,29 @@ export function buildStories(result: Classification): {
   const readyAfterB = result.counts.ready - weak.length
   const unknownAfterB = result.counts.unknown + weak.length
   const moreFound = Math.max(0, weak.length - 1)
+
+  // Every can't-identify file once Story B has caught its own mistakes: the
+  // ones classify() could never place, plus the ones just demoted out of
+  // Ready to apply. Escalating this pile is a Story B detour, not a required
+  // step — it never removes anything from Can't identify, only annotates who
+  // it is with now.
+  const allUnknownIds = [
+    ...result.docs.filter((d) => d.bucket === "unknown").map((d) => d.id),
+    ...weak,
+  ]
+
+  // A second what-if, independent of trustFinal: what changes if the word
+  // "final" in a filename is worth nothing at all. Computed once, from the
+  // real data — the numbers in b5rule's copy come straight out of this.
+  const finalRuleImpact = distrustFinalImpact(result.docs.map((d) => ({
+    file_id: d.id,
+    filename: d.filename,
+    folder_path: d.folderPath,
+    file_type: d.fileType,
+    size_kb: d.sizeKb,
+    date_modified: d.dateModified,
+    content_excerpt: d.excerpt,
+  })), result)
 
   /* ---------------------------------------------------------------- */
   /* Effects                                                          */
@@ -205,7 +236,7 @@ export function buildStories(result: Classification): {
       actor: "assistant",
       content: (
         <p>
-          Rejected — left exactly as it was, nothing renamed. Do you want to send
+          Rejected - left exactly as it was, nothing renamed. Do you want to send
           it to someone, or move on?
         </p>
       ),
@@ -233,7 +264,7 @@ export function buildStories(result: Classification): {
       actor: "assistant",
       content: (
         <p>
-          Approved. I&rsquo;ll archive them rather than delete though — the
+          Approved. I&rsquo;ll archive them rather than delete though - the
           other <Spell n={others.length} /> move to{" "}
           <span className="text-primary">/Archive</span>, each pointing at the
           copy you kept. If this turns out to be the wrong version it&rsquo;s
@@ -272,7 +303,7 @@ export function buildStories(result: Classification): {
       actor: "assistant",
       content: (
         <p>
-          I can&rsquo;t do that from here — this tool renames and moves, it
+          I can&rsquo;t do that from here - this tool renames and moves, it
           doesn&rsquo;t delete, and I&rsquo;d rather it stayed that way while
           we&rsquo;re working through {result.counts.total} files on filename
           evidence. What I&rsquo;ll do instead is archive the {others.length} and
@@ -343,7 +374,7 @@ export function buildStories(result: Classification): {
         {spottedId && (
           <RuleCard
             id={spottedId}
-            rule="New rule added, must have a company name"
+            rule="New rule added - must have a company name"
           />
         )}
       </>
@@ -372,7 +403,14 @@ export function buildStories(result: Classification): {
         </p>
       ),
       suggest: `Okay let's start, what about the ${result.counts.ready} you said were fine? Let's review and approve those.`,
-      chips: [{ label: "Show me five", next: "b2", primary: true }],
+      chips: [
+        {
+          label: `We'll start with the ${result.counts.ready} ready to approve`,
+          next: "b2",
+          primary: true,
+          style: "link",
+        },
+      ],
     },
     {
       id: "b2",
@@ -381,15 +419,14 @@ export function buildStories(result: Classification): {
         <>
           <p>
             I can rename all {result.counts.ready} now. Before I do, here are
-            five at random — if these look right, the other{" "}
+            five at random - if these look right, the other{" "}
             {result.counts.ready - 5} follow the same rules.
           </p>
           <SampleList />
         </>
       ),
       effect: ensureSample,
-      suggest:
-        "Hang on, one of these hasn't got a company name on it.",
+      suggest: "You found it, that fifth one hasn't got a company name on it.",
       chips: [
         // Hidden: gives free text and the pre-filled suggestion above a
         // correct destination without a visible pill for it.
@@ -407,8 +444,7 @@ export function buildStories(result: Classification): {
         </>
       ),
       effect: roll,
-      suggest:
-        "Hang on, one of these hasn't got a company name on it.",
+      suggest: "You found it, that fifth one hasn't got a company name on it.",
       chips: [
         { label: "One is wrong", next: "b4", primary: true, style: "hidden" },
         { label: "Show me five more", next: "b2r" },
@@ -428,9 +464,87 @@ export function buildStories(result: Classification): {
       effect: demoteRest,
       suggest: `That's better. Approve the ${readyAfterB}.`,
       chips: [
-        { label: "Show me another five", next: "b2r", primary: true },
-        { label: `Approve the ${readyAfterB}`, next: "b6" },
+        { label: "Show me another five", next: "b2r" },
+        { label: `Approve the ${readyAfterB}`, next: "b6", primary: true },
+        // No visible control for this — the escalation in this story is
+        // something a presenter types on purpose, not a button they click.
+        {
+          label: "Escalate to partner",
+          next: "b5escalate",
+          style: "hidden",
+          matchText: ["partner", "sara"],
+        },
       ],
+    },
+    {
+      id: "b5escalate",
+      actor: "assistant",
+      content: (
+        <>
+          <p>
+            Sending them to {PARTNER}. She&rsquo;ll get all the files without
+            a company name, {unknownAfterB} files, each with what I found and
+            why I couldn&rsquo;t call it.
+          </p>
+          <p className="mt-3 flex items-center gap-2 font-medium text-ok">
+            <Check className="size-4 shrink-0" />
+            Sent to {PARTNER}
+          </p>
+        </>
+      ),
+      effect: (s) => ({ ...s, escalatedUnknown: allUnknownIds }),
+      suggest:
+        "Thank you. Also, don't trust FINAL at all. Everyone typed it on everything.",
+      chips: [
+        {
+          label: "Apply the FINAL rule",
+          next: "b5rule",
+          primary: true,
+          style: "hidden",
+        },
+      ],
+    },
+    {
+      id: "b5rule",
+      actor: "assistant",
+      content: (
+        <>
+          <p>
+            Applied as a rule and re-run. {finalRuleImpact.changedProposals}{" "}
+            proposals changed. {finalRuleImpact.easier} of the status
+            conflicts resolve cleanly - but {finalRuleImpact.affectedFamilies}{" "}
+            version families now have no clear final at all, because FINAL
+            was the only thing separating them.
+          </p>
+          <p className="mt-2">
+            Your rule made {finalRuleImpact.easier} files easier and{" "}
+            {finalRuleImpact.harder} files harder.
+          </p>
+          <p className="mt-3 flex items-center gap-2 text-[0.9375rem] font-medium text-primary">
+            <Pencil className="size-4 shrink-0" />
+            Ignore FINAL in filenames. Only treat a document as the signed
+            version if the contents say so.
+          </p>
+        </>
+      ),
+      effect: (s) => ({ ...s, finalRuleApplied: true }),
+      chips: [
+        { label: "Show all changed files", next: "dashboard", primary: true },
+        { label: "Show all rules", next: "b5rules" },
+        { label: "Undo the rule", next: "b5" },
+      ],
+    },
+    {
+      id: "b5rules",
+      actor: "assistant",
+      content: (
+        <p>
+          One rule active right now:{" "}
+          <span className="font-medium">Ignore FINAL in filenames</span> -
+          affects {finalRuleImpact.changedProposals} files.
+        </p>
+      ),
+      chips: [{ label: "Back to the sample", next: "b5" }],
     },
     {
       id: "b6",
@@ -462,7 +576,7 @@ function TrustRuleCopy({ result }: { result: Classification }) {
       Rule set: where a filename says FINAL and nothing in the family contradicts
       it, I&rsquo;ll treat that as the operative version instead of asking. That
       moves work out of Needs review, and it means you are trusting whoever typed
-      the filename — which is the thing we just spent {result.counts.review > 0 ? "a file" : "time"}{" "}
+      the filename - which is the thing we just spent {result.counts.review > 0 ? "a file" : "time"}{" "}
       establishing you can&rsquo;t always do. You can turn it off in the
       manifest.
     </p>

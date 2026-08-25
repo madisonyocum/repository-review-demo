@@ -72,7 +72,7 @@ export function ReviewTable() {
   const open = () => dispatch({ type: "story", id: "A", firstBeat: "a1" })
 
   return (
-    <div>
+    <div className="mt-10">
       <div className="flex items-center gap-7 px-1">
         {facets.map((facet, i) => {
           const count = result.docs.filter(facet.count).length

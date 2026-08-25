@@ -30,13 +30,20 @@ export function buildManifest(state: State): Change[] {
   const escalatedIds = new Set(escalated(result).map((d) => d.id))
   const decidedIds = new Set(decided(result).map((d) => d.id))
   const demoted = new Set(state.demoted)
+  const escalatedUnknown = new Set(state.escalatedUnknown)
 
   const rowFor = (d: Doc): Change => {
     const already = recorded.get(d.id)
     if (already) return already
 
     // Demoted in Story B, or never identifiable: left exactly as it was.
+    // Handed to the partner on top of that is annotated, not moved — the
+    // file still isn't renamed, it just has an owner now.
     if (demoted.has(d.id) || d.bucket === "unknown") {
+      const reason = demoted.has(d.id)
+        ? "Counterparty was inferred from the contents, not the filename. Not enough to rename on."
+        : d.reason
+      const handedOff = escalatedUnknown.has(d.id)
       return {
         fileId: d.id,
         oldName: d.filename,
@@ -44,10 +51,8 @@ export function buildManifest(state: State): Change[] {
         oldPath: d.folderPath,
         newPath: d.folderPath,
         action: "no-action",
-        reason: demoted.has(d.id)
-          ? "Counterparty was inferred from the contents, not the filename. Not enough to rename on."
-          : d.reason,
-        approvedBy: "—",
+        reason: handedOff ? `${reason} Open with ${PARTNER}.` : reason,
+        approvedBy: handedOff ? `${PARTNER} (open)` : "-",
         approvedAt: "",
       }
     }

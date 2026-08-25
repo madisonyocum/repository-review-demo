@@ -148,7 +148,7 @@ export function ManifestPanel() {
                   {r.oldName}
                 </td>
                 <td className="max-w-52 px-6 py-3.5 font-mono break-all">
-                  {r.action === "no-action" ? "—" : r.newName}
+                  {r.action === "no-action" ? "-" : r.newName}
                 </td>
                 <td className="px-6 py-3.5 whitespace-nowrap">{r.action}</td>
                 <td className="px-6 py-3.5 whitespace-nowrap">{r.approvedBy}</td>

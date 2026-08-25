@@ -65,7 +65,7 @@ describe("manifest", () => {
     for (const r of manifest) {
       if (r.action === "no-action") continue
       expect(r.approvedBy).not.toBe("")
-      expect(r.approvedBy).not.toBe("—")
+      expect(r.approvedBy).not.toBe("-")
       expect(r.approvedAt).not.toBe("")
     }
   })

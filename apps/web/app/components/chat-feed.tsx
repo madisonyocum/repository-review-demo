@@ -68,7 +68,9 @@ export function ChatFeed({
         const beat = beats[entry.beatId]
         if (!beat) return null
         const live = i === lastBeatIndex
-        const chips = (beat.chips ?? []).filter((c) => c.style !== "hidden")
+        const visible = (beat.chips ?? []).filter((c) => c.style !== "hidden")
+        const links = visible.filter((c) => c.style === "link")
+        const buttons = visible.filter((c) => c.style !== "link")
         const chosen = live ? null : chosenChip(beat, transcript[i + 1])
 
         return (
@@ -91,9 +93,9 @@ export function ChatFeed({
                 {beat.content}
               </div>
 
-              {live && chips.length > 0 && (
+              {live && buttons.length > 0 && (
                 <div className="animate-in fade-in mt-4 flex flex-wrap gap-2.5 duration-300 [animation-delay:150ms] [animation-fill-mode:backwards]">
-                  {chips.map((chip) => (
+                  {buttons.map((chip) => (
                     <Button
                       key={chip.label + chip.next}
                       size="lg"
@@ -109,6 +111,22 @@ export function ChatFeed({
                     >
                       {chip.label}
                     </Button>
+                  ))}
+                </div>
+              )}
+
+              {live && links.length > 0 && (
+                <div className="animate-in fade-in mt-3 flex flex-col items-start gap-2 duration-300 [animation-delay:150ms] [animation-fill-mode:backwards]">
+                  {links.map((chip) => (
+                    <button
+                      key={chip.label + chip.next}
+                      type="button"
+                      onClick={() => onChip(chip)}
+                      className="flex cursor-pointer items-center gap-2 text-[0.9375rem] font-medium text-primary hover:underline"
+                    >
+                      <Check className="size-4 shrink-0" />
+                      {chip.label}
+                    </button>
                   ))}
                 </div>
               )}

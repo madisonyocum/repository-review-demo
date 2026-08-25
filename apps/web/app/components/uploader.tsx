@@ -55,9 +55,9 @@ export function Uploader() {
       )}
     >
       <h1 className="text-base font-semibold">Point me at a repository</h1>
-      <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted-foreground">
-        A CSV export of the folder — file name, path, type, size, date modified,
-        and a short excerpt of the contents. Nothing leaves this browser.
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        A CSV export of the folder - file name, path, type, size, date
+        modified, contents. Nothing leaves this browser.
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2.5">

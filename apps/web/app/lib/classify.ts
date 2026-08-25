@@ -57,6 +57,8 @@ export interface Doc {
   isDraft: boolean
   isStale: boolean
   contradicts: boolean
+  /** isFinal is true only because the filename literally says "final". */
+  restsOnTheWordFinal: boolean
   /** The filename's date could be read two ways — 10-03 is March or October. */
   ambiguousDate: { day: number; month: number } | null
   /** The filename and the contents call the document different things. */
@@ -231,12 +233,14 @@ const TYPE_PATTERNS: [DocType, RegExp[]][] = [
   ["Amendment", [/\bContract\s+Amendment\b/i, /\bAmendment\b/i, /\bAddendum\b/i]],
 ]
 
-const FINAL_MARKERS = [
-  /\bfinal\b/i,
-  /\bexecuted\b/i,
-  /\bsigned\b/i,
-  /\bclean\s+version\b/i,
-]
+/**
+ * Split so a "distrust FINAL" rule can drop just the literal word and keep
+ * the markers that actually describe an event (signed, executed) as
+ * evidence.
+ */
+const FINAL_WORD_MARKER = /\bfinal\b/i
+const EVENT_FINAL_MARKERS = [/\bexecuted\b/i, /\bsigned\b/i, /\bclean\s+version\b/i]
+const FINAL_MARKERS = [FINAL_WORD_MARKER, ...EVENT_FINAL_MARKERS]
 const DRAFT_MARKERS = [
   /\bdraft\b/i,
   /\bredline\b/i,
@@ -443,6 +447,14 @@ export interface ClassifyOptions {
    * whoever typed the filename.
    */
   trustFinal: boolean
+  /**
+   * The opposite bet, offered in Story B: the word "final" carries no weight
+   * at all, only signed/executed/clean-version do. Every downstream field —
+   * isFinal, contradicts, bucket, confidence, the operative pick, the
+   * proposed name — is derived from isFinal, so this one flag is enough to
+   * re-run the whole classification under the new rule.
+   */
+  distrustFinal?: boolean
 }
 
 export function classify(
@@ -459,7 +471,13 @@ export function classify(
 
     const counterparty = nameCp ?? contentsCp
     const docType = nameType ?? contentsType
-    const isFinal = anyOf(FINAL_MARKERS, n)
+    const matchesEventFinal = anyOf(EVENT_FINAL_MARKERS, n)
+    const isFinal = options.distrustFinal
+      ? matchesEventFinal
+      : matchesEventFinal || FINAL_WORD_MARKER.test(n)
+    // The word "final" was the only thing making this file look final — the
+    // exact case a "distrust FINAL" rule would strip out.
+    const restsOnTheWordFinal = FINAL_WORD_MARKER.test(n) && !matchesEventFinal
     const isDraft = anyOf(DRAFT_MARKERS, n)
     const version = findVersion(r.filename)
 
@@ -480,6 +498,7 @@ export function classify(
       isDraft,
       isStale: anyOf(STALE_MARKERS, n),
       contradicts: isFinal && isDraft,
+      restsOnTheWordFinal,
       ambiguousDate: findAmbiguousDate(r.filename),
       wording: (() => {
         const filed = findWording(stem)

@@ -5,6 +5,6 @@
 export const APPROVER = "Jonathan Sayer"
 
 /** The partner work gets escalated to when a rename can't settle it. */
-export const PARTNER = "Sara Vance"
+export const PARTNER = "Sara Vitelli"
 
 export const PARTNER_FIRST_NAME = PARTNER.split(" ")[0]!

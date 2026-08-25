@@ -93,10 +93,18 @@ function Screen() {
       if (stories) dispatch({ type: "story", id: "A", firstBeat: "a1" })
       return
     }
+    // A deliberate detour: if what was actually typed matches a chip's
+    // trigger words, that beat wins over the default path — this is the
+    // only place typed content is read rather than just "did they send
+    // anything." Everything else stays content-blind on purpose.
+    const said = text.toLowerCase()
+    const matched = currentBeat.chips?.find((c) =>
+      c.matchText?.some((k) => said.includes(k))
+    )
     const primary = currentBeat.chips?.find((c) => c.primary)
     const fallback = currentBeat.chips?.[0]
     const successor = order[order.indexOf(currentBeat.id) + 1]
-    const next = primary?.next ?? fallback?.next ?? successor
+    const next = matched?.next ?? primary?.next ?? fallback?.next ?? successor
     if (next) go(next)
   }
 
@@ -115,7 +123,9 @@ function Screen() {
               {state.view === "upload" && <Uploader />}
               {state.view === "dashboard" && <ReviewTable />}
               {state.view === "chat" && stories && (
-                <ChatFeed beats={stories.all} onChip={onChip} />
+                <div className="mt-6">
+                  <ChatFeed beats={stories.all} onChip={onChip} />
+                </div>
               )}
               {state.view === "manifest" && <ManifestPanel />}
             </div>

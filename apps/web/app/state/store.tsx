@@ -28,6 +28,8 @@ export const initialState: State = {
   demoted: [],
   archived: [],
   trustFinal: false,
+  escalatedUnknown: [],
+  finalRuleApplied: false,
   done: { A: false, B: false },
   seed: 1,
 }

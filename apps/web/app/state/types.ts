@@ -46,6 +46,10 @@ export interface State {
   demoted: string[]
   archived: string[]
   trustFinal: boolean
+  /** Can't-identify files handed to the partner during Story B's detour. */
+  escalatedUnknown: string[]
+  /** Story B's "distrust FINAL" what-if has been walked through. */
+  finalRuleApplied: boolean
   done: { A: boolean; B: boolean }
   seed: number
 }
@@ -62,6 +66,13 @@ export interface Chip {
   /** Renders as a primary action. Primary is for primary actions only. */
   primary?: boolean
   tone?: "default" | "destructive"
+  /**
+   * Words that, if the user's own typed message contains any of them, route
+   * free text here instead of the beat's primary chip — the one place a
+   * presenter can go off-script on purpose and land somewhere real, matching
+   * how the escalation in Story B is reached: typed, not clicked.
+   */
+  matchText?: string[]
   /**
    * "link" renders as a single line of link text with a check mark, for a
    * beat with exactly one obvious next step, instead of a full pill button.

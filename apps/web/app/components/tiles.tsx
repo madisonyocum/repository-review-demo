@@ -74,7 +74,7 @@ export function Tiles({ compact }: { compact?: boolean }) {
               value={piles[tile.key]}
               bump={bumped.includes(tile.key)}
               className={cn(
-                "block font-semibold",
+                "block font-sans font-semibold",
                 tile.tone,
                 compact
                   ? "mt-0.5 text-3xl leading-none"

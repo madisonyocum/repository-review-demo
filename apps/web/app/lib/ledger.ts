@@ -2,7 +2,7 @@
  * Everything downstream of classify(): who a file goes to, what the manifest
  * says, and how the random sample is drawn. All derived, none of it hardcoded.
  */
-import type { Classification, Doc } from "./classify"
+import { classify, type Classification, type Doc } from "./classify"
 import type { Change, ChangeAction } from "@/state/types"
 
 /**
@@ -122,4 +122,56 @@ export function drawSample(
   const wrongId = shuffled(weak, rand)[0]!
   const rest = shuffled(clean, rand).slice(0, 4)
   return { ids: shuffled([wrongId, ...rest], rand), wrongId }
+}
+
+/* ------------------------------------------------------------------ */
+/* "Distrust FINAL" what-if                                            */
+/* ------------------------------------------------------------------ */
+
+export interface FinalRuleImpact {
+  /** classify() re-run with the word "final" stripped of any weight. */
+  distrusted: Classification
+  /** Files whose proposed name changes because the operative pick moved. */
+  changedProposals: number
+  /** Files whose confidence goes up — mostly false contradictions clearing. */
+  easier: number
+  /** Files whose confidence drops — a clean single FINAL stops being one. */
+  harder: number
+  /** Families whose operative pick was final on the word alone. */
+  affectedFamilies: number
+}
+
+const CONFIDENCE_RANK = { High: 2, Medium: 1, Low: 0 } as const
+
+/**
+ * What actually changes if "final" in a filename is worth nothing. Computed
+ * by diffing two real classify() runs against each other — nothing here is
+ * asserted, only counted.
+ */
+export function distrustFinalImpact(
+  rows: Parameters<typeof classify>[0],
+  baseline: Classification
+): FinalRuleImpact {
+  const distrusted = classify(rows, { trustFinal: false, distrustFinal: true })
+
+  let changedProposals = 0
+  let easier = 0
+  let harder = 0
+  for (const d of baseline.docs) {
+    const after = distrusted.byId[d.id]!
+    if (after.proposedName !== d.proposedName) changedProposals++
+    const delta = CONFIDENCE_RANK[after.confidence] - CONFIDENCE_RANK[d.confidence]
+    if (delta > 0) easier++
+    if (delta < 0) harder++
+  }
+
+  let affectedFamilies = 0
+  for (const fam of Object.values(baseline.families)) {
+    const operative = baseline.byId[fam.operativeId]!
+    if (operative.isFinal && !operative.isDraft && operative.restsOnTheWordFinal) {
+      affectedFamilies++
+    }
+  }
+
+  return { distrusted, changedProposals, easier, harder, affectedFamilies }
 }
