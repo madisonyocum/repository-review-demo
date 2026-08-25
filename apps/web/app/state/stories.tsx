@@ -440,13 +440,15 @@ export function buildStories(result: Classification): {
       actor: "assistant",
       content: <FoundMoreCopy />,
       effect: demoteRest,
-      suggest: `That's better. Approve the ${readyAfterB}.`,
+      // The pre-filled line IS the escalation request — a presenter can just
+      // press send, the way every other step works, rather than that being
+      // something a button click quietly implies. Clicking "Approve"
+      // produces the identical transcript line, so either path is honest
+      // about what's about to happen.
+      suggest:
+        "Thank you, I'll approve all of them and send a copy to our partner, Sara Vitelli",
       chips: [
         { label: "Show me another five", next: "b2r" },
-        // The primary path now runs straight through the escalation and the
-        // rule what-if on its own — no link to find, no phrase to type. The
-        // whole batch-review → escalate → rule → manifest sequence plays out
-        // from this one click.
         {
           label: `Approve the ${readyAfterB}`,
           next: "b5escalate",
