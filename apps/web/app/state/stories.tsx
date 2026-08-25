@@ -463,8 +463,14 @@ export function buildStories(result: Classification): {
       chips: [
         { label: "Show me another five", next: "b2r" },
         { label: `Approve the ${readyAfterB}`, next: "b6", primary: true },
-        // No visible control for this — the escalation in this story is
-        // something a presenter types on purpose, not a button they click.
+        // A real, findable link — plus the hidden twin below, so typing the
+        // escalation yourself (the way the scripted line does it) still
+        // lands in the same place without needing this button at all.
+        {
+          label: "Send the can't-identify pile to a partner",
+          next: "b5escalate",
+          style: "link",
+        },
         {
           label: "Escalate to partner",
           next: "b5escalate",
