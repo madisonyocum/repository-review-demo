@@ -98,7 +98,7 @@ export function ChatFeed({
                   {buttons.map((chip) => (
                     <Button
                       key={chip.label + chip.next}
-                      size="lg"
+                      size="default"
                       variant={
                         chip.primary
                           ? "default"
@@ -106,7 +106,12 @@ export function ChatFeed({
                             ? "destructive"
                             : "outline"
                       }
-                      className="h-11 text-[0.9375rem]"
+                      className={cn(
+                        "h-10 text-sm",
+                        !chip.primary &&
+                          chip.tone !== "destructive" &&
+                          "bg-background hover:bg-muted/50"
+                      )}
                       onClick={() => onChip(chip)}
                     >
                       {chip.label}
