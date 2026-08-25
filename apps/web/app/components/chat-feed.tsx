@@ -87,8 +87,14 @@ export function ChatFeed({
                 </span>
               </p>
 
+              {/* Prose stops at 80% of the column: full width is far too long
+                  a line to read, and the eye loses the start of the next one
+                  on the way back. Only the paragraphs — the cards and tables
+                  below them are laid out in columns and want the full width,
+                  so the cap is on direct <p> children rather than the whole
+                  turn. */}
               <ShownAs.Provider value={live ? null : (entry.shown ?? null)}>
-                <div className="text-[0.9375rem] leading-relaxed">
+                <div className="text-[0.9375rem] leading-relaxed [&>p]:max-w-[80%]">
                   {beat.content}
                 </div>
               </ShownAs.Provider>
@@ -135,7 +141,6 @@ export function ChatFeed({
                   ))}
                 </div>
               )}
-
             </div>
           </div>
         )
