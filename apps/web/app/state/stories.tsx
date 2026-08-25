@@ -42,6 +42,9 @@ const Spell = ({ n }: { n: number }) => <>{spell(n)}</>
  * as a convention, so accepting has to be sayable as well as clickable.
  */
 const ACCEPT_WORDS = [
+  "set this rule",
+  "set the rule",
+  "set it",
   "use this",
   "use that",
   "looks good",
@@ -263,7 +266,7 @@ export function buildStories(result: Classification): {
         "Company name, then document type, then the year, separated by dashes - and leave the folders where they are.",
       chips: [
         {
-          label: "Use this",
+          label: "Set this rule",
           next: "resume",
           primary: true,
           matchText: ACCEPT_WORDS,
@@ -294,7 +297,7 @@ export function buildStories(result: Classification): {
       suggest: "Actually, put the date first and use underscores.",
       chips: [
         {
-          label: "Use this",
+          label: "Set this rule",
           next: "resume",
           primary: true,
           matchText: ACCEPT_WORDS,
@@ -320,7 +323,7 @@ export function buildStories(result: Classification): {
       onFreeText: "c1custom",
       chips: [
         {
-          label: "Use this",
+          label: "Set this rule",
           next: "resume",
           primary: true,
           matchText: ACCEPT_WORDS,
