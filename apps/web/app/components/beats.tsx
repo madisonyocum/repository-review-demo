@@ -311,7 +311,7 @@ export function ConventionCard() {
               key={note}
               className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground"
             >
-              <Pencil className="size-3 shrink-0" />
+              <Pencil className="mt-[2px] size-3 shrink-0" />
               {note}
             </li>
           ))}

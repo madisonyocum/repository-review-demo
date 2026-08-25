@@ -185,10 +185,14 @@ export function describePattern(c: Convention): string {
   return `${joined}.ext`
 }
 
+/**
+ * Read as a rule about what happens to a file, with "each file" implied —
+ * the field states the convention, it doesn't describe an edit that was made.
+ */
 const FOLDER_WORD: Record<FolderMode, string> = {
-  "by-type": "filed by document type",
-  "by-counterparty": "filed by counterparty",
-  keep: "left in their current folders",
+  "by-type": "Moves to a folder per document type",
+  "by-counterparty": "Moves to a folder per counterparty",
+  keep: "Stays in its current folder",
 }
 
 export function describeFolders(c: Convention): string {
@@ -196,7 +200,8 @@ export function describeFolders(c: Convention): string {
 }
 
 export function describeConvention(c: Convention): string {
-  return `${describePattern(c)}, ${describeFolders(c)}, superseded copies to ${c.archive}`
+  const folders = describeFolders(c)
+  return `${describePattern(c)}, ${folders[0]!.toLowerCase()}${folders.slice(1)}, superseded copies to ${c.archive}`
 }
 
 export function sameConvention(a: Convention, b: Convention): boolean {
