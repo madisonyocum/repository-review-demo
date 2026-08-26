@@ -8,6 +8,7 @@ import { ArrowRight, FileText, Folder, Pencil, Plus } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { cn } from "@workspace/ui/lib/utils"
 import type { Classification, Confidence, Doc } from "@/lib/classify"
+import { rankReady } from "@/lib/ledger"
 import {
   describeFolders,
   describePattern,
@@ -47,7 +48,7 @@ const BUCKET_BADGE = {
 export function FileCard({ doc }: { doc: Doc }) {
   const badge = BUCKET_BADGE[doc.bucket]
   return (
-    <div className="surface mt-3 flex items-center gap-3.5 px-4 py-3.5">
+    <div className="mt-3 flex items-center gap-3.5 surface px-4 py-3.5">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-[0.6rem] bg-muted text-muted-foreground">
         <FileText className="size-4" />
       </span>
@@ -99,7 +100,7 @@ export function VersionFamily({
   ]
 
   return (
-    <div className="surface mt-3 flex flex-wrap items-center gap-4 px-4 py-3.5">
+    <div className="mt-3 flex flex-wrap items-center gap-4 surface px-4 py-3.5">
       <div className="flex flex-wrap gap-2">
         {members.map((m, i) => {
           const isDup = m.excerpt === dupExcerpt
@@ -139,7 +140,7 @@ export function VersionFamily({
 /** Confidence · Version family · Name change. */
 export function Proposal({ doc, kept }: { doc: Doc; kept: number }) {
   return (
-    <div className="surface mt-3 grid grid-cols-1 gap-5 px-5 py-4 sm:grid-cols-[auto_auto_1fr]">
+    <div className="mt-3 grid grid-cols-1 gap-5 surface px-5 py-4 sm:grid-cols-[auto_auto_1fr]">
       <Field label="Confidence">
         <span className={cn("font-medium", confidenceClass(doc.confidence))}>
           {doc.confidence}
@@ -168,7 +169,7 @@ function Field({
 }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase whitespace-nowrap">
+      <p className="text-[11px] font-medium tracking-[0.08em] whitespace-nowrap text-muted-foreground uppercase">
         {label}
       </p>
       <p className="mt-1.5 text-[0.9375rem]">{children}</p>
@@ -177,34 +178,152 @@ function Field({
 }
 
 /**
- * The sampled rows, one file per line. Reads the live sample so a re-roll
- * re-renders. The flagged row carries a "No Counterparty" tag rather than an
- * arrow to a second column — the point is that it doesn't get a proposed name
- * at all.
+ * The three piles, with the rule that put a file in each one.
+ *
+ * These are the classification's own counts, not the live ones. The card is
+ * the record of a triage that happened at a moment — the turn that says "I
+ * read all 220 and sorted them" cannot quietly restate itself later, when
+ * corrections have moved files between piles. Where they are now is the job
+ * of the tiles and the rail.
  */
-export function SampleList() {
-  const { result, sample } = useAppState()
+export function TriageBuckets() {
+  const { result } = useAppState()
   if (!result) return null
-  const docs = sample.map((id) => result.byId[id]!).filter(Boolean)
-
+  const { counts } = result
+  const rows = [
+    {
+      n: counts.ready,
+      label: "Ready to apply",
+      cls: "text-ok",
+      rule: "Counterparty and type both confirmed, and only one version in play.",
+    },
+    {
+      n: counts.review,
+      label: "Needs review",
+      cls: "text-warn",
+      rule: "The name says old, copy or backup, or the family holds identical text under two names.",
+    },
+    {
+      n: counts.unknown,
+      label: "Can't identify",
+      cls: "text-destructive",
+      rule: "No counterparty in the filename or the contents. These can never be in Ready.",
+    },
+  ]
   return (
-    <div className="surface mt-3 divide-y divide-border/60">
-      {docs.map((d) => (
-        <div key={d.id} className="flex items-center gap-3 px-4 py-3">
-          <FileText className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-[0.9375rem]">
-            {d.filename}
+    <div className="mt-3 divide-y divide-border/60 surface">
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-center gap-3.5 px-4 py-3">
+          <span
+            className={cn("w-12 shrink-0 numeric text-xl font-semibold", r.cls)}
+          >
+            {r.n}
           </span>
-          {d.weakGrouping && (
-            <Badge
-              variant="destructive"
-              className="shrink-0 rounded-full px-2.5 py-1"
-            >
-              No Counterparty
-            </Badge>
-          )}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[0.9375rem] leading-snug font-medium">
+              {r.label}
+            </span>
+            <span className="mt-0.5 block text-[0.8125rem] leading-snug text-muted-foreground">
+              {r.rule}
+            </span>
+          </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+/**
+ * What a past turn had on screen. Same contract as ShownAs: the live turn
+ * provides nothing and falls through to state.
+ */
+export const ShownSample = createContext<string[] | null>(null)
+
+/** The files this turn is talking about — the ones it showed, if it is past. */
+export function useShownSample(): string[] {
+  const { sample } = useAppState()
+  return useContext(ShownSample) ?? sample
+}
+
+/**
+ * The five on screen, worst evidence first. Each row is the whole claim being
+ * made about a file — what it is called, what it would be called, why it is
+ * this far down the list, and the rest of its version family — because a name
+ * can only be checked against the thing it was derived from.
+ */
+export function WeakestList() {
+  const { result } = useAppState()
+  const shown = useShownSample()
+  if (!result) return null
+  const risks = rankReady(result)
+  const byRisk = new Map(risks.map((r) => [r.id, r]))
+  const docs = shown.map((id) => result.byId[id]!).filter(Boolean)
+
+  return (
+    <div className="mt-3 divide-y divide-border/60 surface">
+      {docs.map((d) => {
+        const fam = d.familyKey ? result.families[d.familyKey] : undefined
+        const siblings = fam && fam.memberIds.length > 1 ? fam.memberIds : []
+        return (
+          <div key={d.id} className="px-4 py-3.5">
+            <div className="flex items-start gap-3">
+              <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                {/* Old name, arrow, new name — the arrow wraps with the name
+                    rather than being stranded at the end of the first line. */}
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem]">
+                  <span className="font-mono break-all text-muted-foreground line-through">
+                    {d.filename}
+                  </span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="font-mono font-medium break-all text-foreground">
+                    {d.proposedName}
+                  </span>
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {(byRisk.get(d.id)?.faults ?? []).map((f) => (
+                    <li
+                      key={f}
+                      className="text-[0.8125rem] leading-snug text-muted-foreground"
+                    >
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                {siblings.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {siblings.map((id, i) => (
+                      <span
+                        key={id}
+                        title={result.byId[id]!.filename}
+                        className={cn(
+                          "rounded-md px-1.5 py-0.5 numeric text-[11px] font-medium",
+                          id === d.id
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        v{i + 1}
+                      </span>
+                    ))}
+                    <span className="text-[0.8125rem] text-muted-foreground">
+                      in this family
+                    </span>
+                  </div>
+                )}
+              </div>
+              {d.weakGrouping && (
+                <Badge
+                  variant="destructive"
+                  className="shrink-0 rounded-full px-2.5 py-1"
+                >
+                  No Counterparty
+                </Badge>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -215,7 +334,7 @@ export function RuleCard({ id, rule }: { id: string; rule: string }) {
   const d = result?.byId[id]
   if (!d) return null
   return (
-    <div className="surface mt-3 flex items-center gap-3 px-4 py-3">
+    <div className="mt-3 flex items-center gap-3 surface px-4 py-3">
       <FileText className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-[0.9375rem]">
         {d.filename}
@@ -334,4 +453,29 @@ const SOURCE_LINE: Record<string, string> = {
   local: hasApiKey()
     ? "Read from what you typed, here in the browser."
     : "Read from what you typed, here in the browser \u00b7 no API key configured.",
+}
+
+/** The files a rule just caught, and where each one goes. */
+export function RuleMatches({ ids }: { ids: string[] }) {
+  const { result } = useAppState()
+  if (!result) return null
+  const docs = ids.map((id) => result.byId[id]!).filter(Boolean)
+  return (
+    <div className="surface mt-3 divide-y divide-border/60">
+      {docs.map((d) => (
+        <div key={d.id} className="flex items-center gap-3 px-4 py-3">
+          <FileText className="size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
+            {d.filename}
+          </span>
+          <Badge
+            variant="destructive"
+            className="shrink-0 rounded-full px-2.5 py-1"
+          >
+            Can&rsquo;t Identify
+          </Badge>
+        </div>
+      ))}
+    </div>
+  )
 }

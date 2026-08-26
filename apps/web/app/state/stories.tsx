@@ -13,17 +13,19 @@ import {
   changeFor,
   decided,
   distrustFinalImpact,
-  drawSample,
   escalated,
   superseded,
+  weakestFive,
 } from "@/lib/ledger"
 import {
   ConventionCard,
   FileCard,
   Proposal,
   RuleCard,
-  SampleList,
+  TriageBuckets,
+  RuleMatches,
   VersionFamily,
+  WeakestList,
 } from "@/components/beats"
 import { DEFAULT_CONVENTION, PRESETS, type Convention } from "@/lib/convention"
 import { Pencil } from "lucide-react"
@@ -31,8 +33,19 @@ import { APPROVER, PARTNER, PARTNER_FIRST_NAME } from "@/lib/people"
 import type { Beat, State, Story } from "./types"
 
 const WORDS = [
-  "no", "one", "two", "three", "four", "five", "six", "seven", "eight",
-  "nine", "ten", "eleven", "twelve",
+  "no",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
 ]
 const spell = (n: number) => WORDS[n] ?? String(n)
 const Spell = ({ n }: { n: number }) => <>{spell(n)}</>
@@ -95,15 +108,18 @@ export function buildStories(result: Classification): {
   // A second what-if, independent of trustFinal: what changes if the word
   // "final" in a filename is worth nothing at all. Computed once, from the
   // real data — the numbers in b5rule's copy come straight out of this.
-  const finalRuleImpact = distrustFinalImpact(result.docs.map((d) => ({
-    file_id: d.id,
-    filename: d.filename,
-    folder_path: d.folderPath,
-    file_type: d.fileType,
-    size_kb: d.sizeKb,
-    date_modified: d.dateModified,
-    content_excerpt: d.excerpt,
-  })), result)
+  const finalRuleImpact = distrustFinalImpact(
+    result.docs.map((d) => ({
+      file_id: d.id,
+      filename: d.filename,
+      folder_path: d.folderPath,
+      file_type: d.fileType,
+      size_kb: d.sizeKb,
+      date_modified: d.dateModified,
+      content_excerpt: d.excerpt,
+    })),
+    result
+  )
 
   /* ---------------------------------------------------------------- */
   /* Effects                                                          */
@@ -161,13 +177,19 @@ export function buildStories(result: Classification): {
     }
   }
 
-  const roll = (s: State): State => {
-    const seed = s.seed + 1
-    return { ...s, seed, sample: drawSample(result, seed, s.demoted).ids }
-  }
+  /** Show one page of the worst-first ranking. No draw, no re-roll. */
+  const showPage =
+    (page: number) =>
+    (s: State): State => ({
+      ...s,
+      samplePage: page,
+      sample: weakestFive(result, page, s.demoted),
+    })
+
+  const nextPage = (s: State): State => showPage(s.samplePage + 1)(s)
 
   const ensureSample = (s: State): State =>
-    s.sample.length ? s : roll(s)
+    s.sample.length ? s : showPage(0)(s)
 
   /** Story B: the one the user caught. */
   const demoteSpotted = (s: State): State => {
@@ -219,20 +241,13 @@ export function buildStories(result: Classification): {
    * same file as if it were new, which is worse than saying so.
    */
   function AlreadyDone() {
-    const { done, piles, changes } = useAppState()
-    const which = done.A && done.B ? "both of those" : "that one"
+    const { piles } = useAppState()
     return (
       <>
         <p>
-          We&rsquo;ve already been through {which}.{" "}
-          {changes.length > 0 && (
-            <>
-              <Spell n={changes.length} />{" "}
-              {changes.length === 1 ? "decision is" : "decisions are"} recorded
-              and still hold, so I&rsquo;m not going to run it again and write
-              the same ones down twice.
-            </>
-          )}
+          We&rsquo;ve already been through that one. Your decisions are recorded
+          and still hold, so I&rsquo;m not going to run it again and write the
+          same ones down twice.
         </p>
         <p className="mt-2">
           What&rsquo;s left is {piles.ready} ready to apply and {piles.review}{" "}
@@ -305,7 +320,13 @@ export function buildStories(result: Classification): {
         {
           label: "Start over",
           next: "c1",
-          matchText: ["start over", "start again", "never mind", "nevermind", "scrap that"],
+          matchText: [
+            "start over",
+            "start again",
+            "never mind",
+            "nevermind",
+            "scrap that",
+          ],
           effect: setConvention(DEFAULT_CONVENTION, "default"),
         },
       ],
@@ -331,7 +352,13 @@ export function buildStories(result: Classification): {
         {
           label: "Start over",
           next: "c1",
-          matchText: ["start over", "start again", "never mind", "nevermind", "scrap that"],
+          matchText: [
+            "start over",
+            "start again",
+            "never mind",
+            "nevermind",
+            "scrap that",
+          ],
           effect: setConvention(DEFAULT_CONVENTION, "default"),
         },
       ],
@@ -519,65 +546,87 @@ export function buildStories(result: Classification): {
   ]
 
   /* ---------------------------------------------------------------- */
-  /* Story B — 132 at once, by sample                                 */
+  /* Story B — the whole Ready pile, worst evidence first              */
+  /*                                                                   */
+  /* Triage, then the weakest five, then two corrections: one caught   */
+  /* in the sample and generalised into a rule, one said in plain      */
+  /* English and reported back in both directions.                     */
   /* ---------------------------------------------------------------- */
 
-  // Which of the five sampled rows was the plant. drawSample always seeds
-  // it into the sample, so the last one added to the sample is the spotted
-  // file — read from state at render time since the sample itself is live.
-  function SpottedCopy() {
-    const { sample } = useAppState()
-    const spottedId = sample.find((id) => weak.includes(id))
+  /**
+   * The FINAL rule, applied. It moves no file between piles — that is the
+   * finding, not an omission — so what it changes is what the manifest is
+   * willing to claim about the families it orphaned.
+   */
+  const applyFinalRule = (s: State): State => ({
+    ...s,
+    finalRuleApplied: true,
+    flaggedOrphans: finalRuleImpact.orphanFileIds,
+    done: { ...s.done, B: true },
+  })
+
+  /**
+   * Which of the five on screen the user caught. The ranking puts the worst
+   * evidence first, so this is the top row of the list they were shown —
+   * read from live state, because the list moves with [Show the next five].
+   */
+  function RuleAddedCopy() {
     return (
       <>
         <p>
-          You&rsquo;re right, that one shouldn&rsquo;t be in this group.
-          It&rsquo;s got a date and a type but no counterparty, so it belongs in
-          the can&rsquo;t-identify pile. Moving it, and checking the other{" "}
-          {result.counts.ready - 1} for the same mistake.
+          Nice one &mdash; I&rsquo;ll set that as a rule: the company name has
+          to be in the filename, not read out of the document text. It&rsquo;s
+          now stored in your rules and applied to all {result.counts.ready}.
         </p>
-        {spottedId && (
-          <RuleCard
-            id={spottedId}
-            rule="New rule added - must have a company name"
-          />
-        )}
+        <RuleCard
+          id={weak[0]!}
+          rule="New rule added - must have a company name"
+        />
+        <p className="mt-3">
+          {weak.length} {weak.length === 1 ? "file" : "files"} move out of Ready
+          to apply on it. None of them are renamed, and nothing is deleted:
+        </p>
+        <RuleMatches ids={weak} />
+        <p className="mt-3 flex items-center gap-2 font-medium text-primary">
+          <Plus className="size-4 shrink-0" />
+          Ready to apply is now {readyAfterB}. Can&rsquo;t identify is{" "}
+          {unknownAfterB}.
+        </p>
       </>
     )
   }
 
-  function FoundMoreCopy() {
-    return (
-      <p className="mt-3 flex items-center gap-2 font-medium text-primary">
-        <Plus className="size-4 shrink-0" />
-        {moreFound === 0
-          ? `Ready to apply is now ${readyAfterB}, can't identify is ${unknownAfterB}.`
-          : `${moreFound} more found. Ready to apply is now ${readyAfterB}, can't identify is ${unknownAfterB}.`}
-      </p>
-    )
-  }
-
   const STORY_B: Beat[] = [
+    /* 1 — Triage. */
     {
       id: "b1",
       actor: "assistant",
       content: (
-        <p>
-          I&rsquo;ve read all {result.counts.total} files and sorted them by how
-          confident I am. How can I help you get through them?
-        </p>
+        <>
+          <p>
+            I&rsquo;ve read all {result.counts.total} files and sorted them by
+            how confident I am. How can I help you get through them?
+          </p>
+          <TriageBuckets />
+        </>
       ),
-      suggest: `Okay let's start, what about the ${result.counts.ready} you said were fine? Let's review those.`,
+      suggest: `Okay let's start, what about the ${result.counts.ready} you said were fine? Let's review and approve those.`,
       chips: [
         {
-          label: `Start with the ${result.counts.ready}`,
+          label: `We'll start with the ${result.counts.ready} ready to approve`,
           next: "b2",
           primary: true,
+          style: "link",
         },
         { label: `Review the ${result.counts.review}`, next: "a1" },
-        { label: "Show me what you couldn't identify", next: "dashboard" },
+        {
+          label: `Show me the ${result.counts.unknown} you couldn't identify`,
+          next: "dashboard",
+        },
       ],
     },
+
+    /* 2 — The weakest five, worst evidence first. */
     {
       id: "b2",
       actor: "assistant",
@@ -585,20 +634,21 @@ export function buildStories(result: Classification): {
         <>
           <p>
             I can rename all {result.counts.ready} now. Before I do, here are
-            five at random - if these look right, the other{" "}
-            {result.counts.ready - 5} follow the same rules.
+            the five shakiest to give you a view &mdash; if these hold, the
+            other {result.counts.ready - 5} follow the same rules. Let&rsquo;s
+            create the first naming rule:
           </p>
-          <SampleList />
+          <WeakestList />
         </>
       ),
       effect: ensureSample,
       suggest:
-        "These look good except the fifth one hasn't got a company name on it.",
+        "Every file must have the company name in the filename - don't take it from the document text.",
       chips: [
         // Hidden: gives free text and the pre-filled suggestion above a
         // correct destination without a visible pill for it.
         { label: "One is wrong", next: "b4", primary: true, style: "hidden" },
-        { label: "Show me five more", next: "b2r" },
+        { label: "Show the next five", next: "b2r" },
       ],
     },
     {
@@ -606,46 +656,42 @@ export function buildStories(result: Classification): {
       actor: "assistant",
       content: (
         <>
-          <p>A different five, same rule:</p>
-          <SampleList />
+          <p>
+            The next five down the same list, less shaky than the ones above
+            them:
+          </p>
+          <WeakestList />
         </>
       ),
-      effect: roll,
+      effect: nextPage,
       suggest:
-        "These look good except the fifth one hasn't got a company name on it.",
+        "Same rule - the company name has to be in the filename.",
       chips: [
         { label: "One is wrong", next: "b4", primary: true, style: "hidden" },
-        { label: "Show me five more", next: "b2r" },
+        { label: "Show the next five", next: "b2r" },
       ],
     },
+
+    /* 3 — The rule the sample produced, stored and applied. */
     {
       id: "b4",
       actor: "assistant",
-      content: <SpottedCopy />,
-      effect: demoteSpotted,
-      then: "b5",
-    },
-    {
-      id: "b5",
-      actor: "assistant",
-      content: <FoundMoreCopy />,
-      effect: demoteRest,
-      // The pre-filled line IS the escalation request — a presenter can just
-      // press send, the way every other step works, rather than that being
-      // something a button click quietly implies. Clicking "Approve"
-      // produces the identical transcript line, so either path is honest
-      // about what's about to happen.
+      content: <RuleAddedCopy />,
+      effect: (s) => demoteRest(demoteSpotted(s)),
+      // The pre-filled line IS the approval — a presenter can just press
+      // send, the way every other step works. The chip says the same
+      // sentence, so either path is honest about what it asks for.
       suggest:
-        "Thank you, I'll approve all of them and send a copy to our partner, Sara Vitelli",
+        "Thank you, make the naming changes and approve all of them and send a copy to our partner, Sara Vitelli",
       chips: [
-        { label: "Show me another five", next: "b2r" },
         {
-          label: `Approve the ${readyAfterB}`,
+          label: "Apply rule to documents found",
           next: "b5escalate",
           primary: true,
           sayAs:
-            "Thank you, I'll approve all of them and send a copy to our partner, Sara Vitelli",
+            "Thank you, make the naming changes and approve all of them and send a copy to our partner, Sara Vitelli",
         },
+        { label: "Show the next five", next: "b2r" },
       ],
     },
     {
@@ -655,8 +701,8 @@ export function buildStories(result: Classification): {
         <>
           <p>
             Sending them to {PARTNER}. She&rsquo;ll get all the files without a
-            company name, {unknownAfterB} files, each with what I found and why
-            I couldn&rsquo;t call it.
+            company name, {unknownAfterB} files, each with what I found on it
+            and the reason it needs a person.
           </p>
           <p className="mt-3 flex items-center gap-2 font-medium text-ok">
             <Check className="size-4 shrink-0" />
@@ -669,21 +715,30 @@ export function buildStories(result: Classification): {
       thenSay:
         "Also, don't trust FINAL at all. Everyone typed it on everything.",
     },
+
+    /* 4 — A rule in plain English, applied and re-run, both directions. */
     {
       id: "b5rule",
       actor: "assistant",
       content: (
         <>
           <p>
-            Applied as a rule and re-run. {finalRuleImpact.changedProposals}{" "}
-            proposals changed. {finalRuleImpact.easier} of the status conflicts
-            resolve cleanly - but {finalRuleImpact.affectedFamilies} version
-            families now have no clear final at all, because FINAL was the only
-            thing separating them.
+            Applied as a rule and re-run.{" "}
+            {finalRuleImpact.changedProposals === 0
+              ? "No proposed name changed - the version numbers were already carrying that."
+              : `${finalRuleImpact.changedProposals} proposals changed.`}{" "}
+            {finalRuleImpact.easier} of the status conflicts resolve cleanly
+            &mdash; but {finalRuleImpact.orphanFamilies} version families now
+            have no candidate at all, because FINAL was the only thing
+            separating them.
           </p>
           <p className="mt-2">
-            Your rule made {finalRuleImpact.easier} files easier and{" "}
-            {finalRuleImpact.harder} files harder.
+            Those {finalRuleImpact.orphanFileIds.length} files keep their new
+            names and each row reads{" "}
+            <span className="italic">no signed copy identified</span> rather
+            than naming one, so nothing is signed off on a word alone.
+            I&rsquo;ve updated the piles, applied your new rule and resent it to{" "}
+            {PARTNER}.
           </p>
           <p className="mt-3 flex items-center gap-2 text-[0.9375rem] font-medium text-primary">
             <Pencil className="size-4 shrink-0" />
@@ -692,14 +747,11 @@ export function buildStories(result: Classification): {
           </p>
         </>
       ),
-      effect: (s) => ({
-        ...s,
-        finalRuleApplied: true,
-        done: { ...s.done, B: true },
-      }),
+      effect: applyFinalRule,
       suggest: "Good, apply everything and show me the manifest.",
       chips: [
         { label: "Apply everything", next: "manifest", primary: true },
+        { label: "Show all changed files", next: "dashboard" },
         { label: "Show all rules", next: "b5rules" },
       ],
     },
@@ -707,13 +759,33 @@ export function buildStories(result: Classification): {
       id: "b5rules",
       actor: "assistant",
       content: (
-        <p>
-          One rule active right now:{" "}
-          <span className="font-medium">Ignore FINAL in filenames</span> -
-          affects {finalRuleImpact.changedProposals} files.
-        </p>
+        <>
+          <p>Two rules active, both of them yours:</p>
+          <ul className="mt-2 space-y-2">
+            <li className="flex items-start gap-2">
+              <Pencil className="mt-1 size-3.5 shrink-0 text-primary" />
+              <span>
+                <span className="font-medium">
+                  The filename has to name the company
+                </span>{" "}
+                &mdash; moved {weak.length} files out of Ready to apply.
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <Pencil className="mt-1 size-3.5 shrink-0 text-primary" />
+              <span>
+                <span className="font-medium">Ignore FINAL in filenames</span>{" "}
+                &mdash; {finalRuleImpact.easier} files clearer,{" "}
+                {finalRuleImpact.harder} less certain.
+              </span>
+            </li>
+          </ul>
+        </>
       ),
-      chips: [{ label: "Back", next: "b5rule" }],
+      chips: [
+        { label: "Apply everything", next: "manifest", primary: true },
+        { label: "Back", next: "b5rule" },
+      ],
     },
   ]
 
@@ -763,6 +835,10 @@ function TrustRuleCopy({ result }: { result: Classification }) {
  */
 export function applyEverything(result: Classification) {
   return (s: State): State => {
+    // Step 5 applies the plan in the conversation, and opening the manifest
+    // applies it again. Second time through there is nothing left to record,
+    // and the pile handed to a person must not be counted twice.
+    if (s.applied) return s
     const recorded = new Set(s.changes.map((c) => c.fileId))
     const demoted = new Set(s.demoted)
     const at = new Date()
@@ -802,6 +878,7 @@ export function applyEverything(result: Classification) {
         unknown: s.piles.unknown,
       },
       done: { A: true, B: true },
+      applied: true,
     }
   }
 }

@@ -31,6 +31,12 @@ export function buildManifest(state: State): Change[] {
   const decidedIds = new Set(decided(result).map((d) => d.id))
   const demoted = new Set(state.demoted)
   const escalatedUnknown = new Set(state.escalatedUnknown)
+  // A file whose family lost its only claim to being signed when the FINAL
+  // rule came in. It is still renamed — the rule moved no names — but the
+  // row stops implying anyone knows which copy was executed.
+  const orphans = new Set(state.flaggedOrphans)
+  const ORPHAN_NOTE =
+    "No signed copy identified in this family once FINAL is ignored."
 
   const rowFor = (d: Doc): Change => {
     const already = recorded.get(d.id)
@@ -72,13 +78,16 @@ export function buildManifest(state: State): Change[] {
     }
 
     const approver = decidedIds.has(d.id) ? APPROVER : "Assistant"
-    return changeFor(
+    const row = changeFor(
       d,
       approver,
       state.archived,
       new Date(),
       state.convention.archive
     )
+    return orphans.has(d.id)
+      ? { ...row, reason: `${row.reason} ${ORPHAN_NOTE}` }
+      : row
   }
 
   return result.docs.map(rowFor)

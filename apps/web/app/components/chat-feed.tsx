@@ -6,7 +6,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { APPROVER_INITIALS } from "@/lib/people"
 import { useAppState } from "@/state/store"
 import type { Chip, Story } from "@/state/types"
-import { ShownAs } from "./beats"
+import { ShownAs, ShownSample } from "./beats"
 import { Sparkle } from "./icons"
 
 const clock = (at: number) =>
@@ -48,7 +48,7 @@ export function ChatFeed({
           return (
             <div
               key={i}
-              className="animate-in fade-in slide-in-from-bottom-2 flex justify-end gap-3 duration-300 ease-out"
+              className="flex animate-in justify-end gap-3 duration-300 ease-out fade-in slide-in-from-bottom-2"
             >
               <p className="max-w-lg rounded-2xl bg-secondary px-4 py-3 text-[0.9375rem] leading-relaxed text-secondary-foreground">
                 {entry.text}
@@ -74,7 +74,7 @@ export function ChatFeed({
         return (
           <div
             key={i}
-            className="animate-in fade-in slide-in-from-bottom-2 flex gap-3 duration-300 ease-out"
+            className="flex animate-in gap-3 duration-300 ease-out fade-in slide-in-from-bottom-2"
           >
             <span className="flex size-8 shrink-0 items-center justify-center rounded-[0.6rem] bg-primary/10 text-primary">
               <Sparkle className="size-4" />
@@ -94,13 +94,17 @@ export function ChatFeed({
                   so the cap is on direct <p> children rather than the whole
                   turn. */}
               <ShownAs.Provider value={live ? null : (entry.shown ?? null)}>
-                <div className="text-[0.9375rem] leading-relaxed [&>p]:max-w-[80%]">
-                  {beat.content}
-                </div>
+                <ShownSample.Provider
+                  value={live ? null : (entry.sample ?? null)}
+                >
+                  <div className="text-[0.9375rem] leading-relaxed [&>p]:max-w-[80%]">
+                    {beat.content}
+                  </div>
+                </ShownSample.Provider>
               </ShownAs.Provider>
 
               {live && buttons.length > 0 && (
-                <div className="animate-in fade-in mt-4 flex flex-wrap gap-2.5 duration-300 [animation-delay:150ms] [animation-fill-mode:backwards]">
+                <div className="mt-4 flex animate-in flex-wrap gap-2.5 duration-300 [animation-delay:150ms] [animation-fill-mode:backwards] fade-in">
                   {buttons.map((chip) => (
                     <Button
                       key={chip.label + chip.next}
@@ -127,7 +131,7 @@ export function ChatFeed({
               )}
 
               {live && links.length > 0 && (
-                <div className="animate-in fade-in mt-3 flex flex-col items-start gap-2 duration-300 [animation-delay:150ms] [animation-fill-mode:backwards]">
+                <div className="mt-3 flex animate-in flex-col items-start gap-2 duration-300 [animation-delay:150ms] [animation-fill-mode:backwards] fade-in">
                   {links.map((chip) => (
                     <button
                       key={chip.label + chip.next}

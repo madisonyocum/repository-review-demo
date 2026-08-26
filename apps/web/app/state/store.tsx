@@ -9,7 +9,7 @@ import {
 
 import { classify, type RawRow } from "@/lib/classify"
 import { DEFAULT_CONVENTION, type Convention } from "@/lib/convention"
-import { changeFor, drawSample } from "@/lib/ledger"
+import { changeFor } from "@/lib/ledger"
 import type { Piles, State, StoryId, View } from "./types"
 
 const EMPTY_PILES: Piles = { ready: 0, review: 0, withPartner: 0, unknown: 0 }
@@ -39,7 +39,9 @@ export const initialState: State = {
   finalRuleApplied: false,
   done: { A: false, B: false },
   loadedAt: 0,
-  seed: 1,
+  samplePage: 0,
+  flaggedOrphans: [],
+  applied: false,
 }
 
 export type Action =
@@ -55,13 +57,13 @@ export type Action =
       via: State["conventionVia"]
       notes: string[]
     }
-  | { type: "reseed" }
   | { type: "commit"; effect: (s: State) => State; view: View }
   | { type: "reset" }
 
 /**
- * Stamp the newest beat with the convention it is being shown under, so the
- * card in that turn stays what it was when it was said.
+ * Stamp the newest beat with what it is being shown under — the convention,
+ * and the files that were on screen — so the cards in that turn stay what
+ * they were when it was said.
  */
 function stamp(s: State): State {
   const i = s.transcript.length - 1
@@ -75,6 +77,7 @@ function stamp(s: State): State {
       via: s.conventionVia,
       notes: s.conventionNotes,
     },
+    sample: s.sample,
   }
   return { ...s, transcript }
 }
@@ -112,7 +115,6 @@ function reduce(state: State, action: Action): State {
           withPartner: 0,
           unknown: result.counts.unknown,
         },
-        seed: Math.floor(Math.random() * 1e9),
         loadedAt: Date.now(),
       }
     }
@@ -126,7 +128,8 @@ function reduce(state: State, action: Action): State {
       // everything else in state carries over untouched.
       // A story that has already been walked doesn't get walked again.
       const wanted =
-        (action.id === "A" && state.done.A) || (action.id === "B" && state.done.B)
+        (action.id === "A" && state.done.A) ||
+        (action.id === "B" && state.done.B)
           ? "again"
           : action.firstBeat
       // Until the convention is settled, every route into the conversation
@@ -174,13 +177,6 @@ function reduce(state: State, action: Action): State {
         view: action.view,
         bumped: diffPiles(state.piles, next.piles),
       }
-    }
-    case "reseed": {
-      const seed = state.seed + 1
-      const sample = state.result
-        ? drawSample(state.result, seed, state.demoted).ids
-        : []
-      return { ...state, seed, sample, bumped: [] }
     }
     case "reset":
       return initialState

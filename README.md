@@ -148,12 +148,22 @@ strand the demo.
 - **Story A** — one file in depth. A4 is the point: asked to delete the other
   three versions, the assistant archives instead and explains why it's
   reversible. Pressing "No, delete them" does not get them deleted.
-- **Story B** — 132 at once, by sample. Five drawn at random, one of which is a
-  file whose counterparty was inferred from the document text rather than the
-  filename. Catching it demotes that file and re-checks the rest, which finds
-  six more. The sample is stratified (four clean + one weak, both drawn at
-  random) and re-rolls independently, so "Show me five more" really does return
-  a different five.
+- **Story B** — 132 at once, worst first. It opens on the triage: the three
+  counts with the rule that put a file in each, including the one that makes
+  the rest checkable — nothing without a counterparty can be in Ready to
+  apply. Then five files, and they are not a draw: `rankReady()` in
+  `lib/ledger.ts` orders the whole Ready pile by how much of the proposed name
+  rests on something inferred rather than read, and the demo shows the top
+  five with each one's reasons and its version-family siblings inline. A
+  random five would let the assistant pass on the strength of the easy rows;
+  worst-first can only support the honest claim, which is that if these hold
+  the other 127 are safer. Catching one demotes it, turns the reason into a
+  rule, and re-sweeps the pile — which finds six more, two of them already on
+  screen. Then a rule in plain English ("don't trust FINAL") is applied and
+  re-run, and reported in both directions: 17 files clearer, 6 less certain,
+  and 29 version families left with nothing claiming to be the signed copy,
+  each of those rows saying so in the manifest rather than inheriting a
+  guess.
 
 ## The ending
 

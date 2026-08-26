@@ -76,55 +76,119 @@ export function changeFor(
 }
 
 /* ------------------------------------------------------------------ */
-/* Sampling                                                            */
+/* Worst first                                                         */
 /* ------------------------------------------------------------------ */
 
-/** mulberry32 — small, seeded, so a re-roll is reproducible from the seed. */
-export function rng(seed: number): () => number {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-export function shuffled<T>(items: T[], rand: () => number): T[] {
-  const a = [...items]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1))
-    ;[a[i], a[j]] = [a[j]!, a[i]!]
-  }
-  return a
+export interface ReadyRisk {
+  id: string
+  /** How much of this proposed name rests on evidence that could be wrong. */
+  score: number
+  /** Every reason it is on the list, worst first, said in plain English. */
+  faults: string[]
 }
 
 /**
- * Five from the ready pile, of which exactly one is a file whose counterparty
- * was inferred from the document text rather than the filename — the weaker
- * evidence, and the mistake Story B is about.
- *
- * Both halves are drawn at random and re-roll independently, so [Show me five
- * more] genuinely returns a different five. It is a stratified sample, not a
- * uniform one: the demo guarantees a bad row is present, and says so.
+ * How much each weakness is worth. A counterparty read out of the document
+ * text is the only one classify() already scores Low on its own — the rest
+ * are things a name can survive one of and not three.
  */
-export function drawSample(
-  result: Classification,
-  seed: number,
-  excluded: string[] = []
-): { ids: string[]; wrongId: string } {
-  const rand = rng(seed)
-  const skip = new Set(excluded)
-  const weak = result.weakInReady.filter((id) => !skip.has(id))
-  const clean = result.docs
-    .filter(
-      (d) => d.bucket === "ready" && !d.weakGrouping && !skip.has(d.id)
-    )
-    .map((d) => d.id)
+const WEIGHTS = {
+  weakCounterparty: 3,
+  wording: 2,
+  ambiguousDate: 2,
+  restsOnFinal: 1,
+  date: 1,
+  inFamily: 1,
+} as const
 
-  const wrongId = shuffled(weak, rand)[0]!
-  const rest = shuffled(clean, rand).slice(0, 4)
-  return { ids: shuffled([wrongId, ...rest], rand), wrongId }
+/**
+ * A year anywhere in the name, with no word boundaries: `20200331` and
+ * `Feb2021` both carry one, and a boundary-anchored pattern would call them
+ * undated and say so on screen.
+ */
+const YEAR = /(19|20)\d{2}/
+
+/**
+ * The ready pile ordered worst evidence first — no randomness anywhere, so
+ * the five the demo shows are the five the data says are weakest, and the
+ * same five every time.
+ *
+ * Sampling at random would let a presenter draw five easy rows and call the
+ * other 127 safe on the strength of them. Worst first can only make the
+ * opposite claim, which is the honest one: if these hold, the rest hold.
+ */
+export function rankReady(
+  result: Classification,
+  excluded: string[] = []
+): ReadyRisk[] {
+  const skip = new Set(excluded)
+  return (
+    result.docs
+      .filter((d) => d.bucket === "ready" && !skip.has(d.id))
+      .map((d) => {
+        const faults: string[] = []
+        let score = 0
+        if (d.weakGrouping) {
+          score += WEIGHTS.weakCounterparty
+          faults.push("Company name read out of the contents, not the filename")
+        }
+        if (d.wording) {
+          score += WEIGHTS.wording
+          faults.push(
+            `Filed as ${d.wording.filed}; the contents describe ${d.wording.describes}`
+          )
+        }
+        if (d.ambiguousDate) {
+          score += WEIGHTS.ambiguousDate
+          faults.push("The date in the name could be read two ways")
+        }
+        if (d.restsOnTheWordFinal) {
+          score += WEIGHTS.restsOnFinal
+          faults.push("Counted as final because the filename says so")
+        }
+        // The new name always takes its date from the file's modified date —
+        // that is the only date this tool can actually verify. Worth flagging
+        // when the filename either offers nothing to check that against, or
+        // offers something that disagrees with it. An ambiguous date is
+        // already reported above; saying "no date in the name" as well would
+        // contradict it.
+        const year = d.filename.match(YEAR)?.[0]
+        const modifiedYear = d.dateModified.slice(0, 4)
+        if (!d.ambiguousDate) {
+          if (!year) {
+            score += WEIGHTS.date
+            faults.push("No date in the name; the new one is the modified date")
+          } else if (year !== modifiedYear) {
+            score += WEIGHTS.date
+            faults.push(
+              `The name says ${year}; the modified date the new name uses is ${modifiedYear}`
+            )
+          }
+        }
+        const fam = d.familyKey ? result.families[d.familyKey] : undefined
+        if (fam && fam.memberIds.length > 1) {
+          score += WEIGHTS.inFamily
+          faults.push(`One of ${fam.memberIds.length} versions`)
+        }
+        return { id: d.id, score, faults }
+      })
+      // Ties break on file_id so the order is stable across runs, not on
+      // whatever order the CSV happened to arrive in.
+      .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+  )
+}
+
+/** One page of five off the worst-first ranking. */
+export function weakestFive(
+  result: Classification,
+  page: number,
+  excluded: string[] = []
+): string[] {
+  const ranked = rankReady(result, excluded)
+  if (!ranked.length) return []
+  // Past the end, wrap: [Show the next five] never lands on nothing.
+  const start = (page * 5) % Math.max(1, ranked.length)
+  return ranked.slice(start, start + 5).map((r) => r.id)
 }
 
 /* ------------------------------------------------------------------ */
@@ -142,6 +206,15 @@ export interface FinalRuleImpact {
   harder: number
   /** Families whose operative pick was final on the word alone. */
   affectedFamilies: number
+  /**
+   * Families that had something claiming to be the signed copy and, under
+   * the rule, have nothing at all — the orphans. FINAL was the only thing
+   * telling their members apart.
+   */
+  orphanFamilies: number
+  orphanFileIds: string[]
+  /** The orphans currently sitting in Ready to apply on that word alone. */
+  orphanReadyIds: string[]
 }
 
 const CONFIDENCE_RANK = { High: 2, Medium: 1, Low: 0 } as const
@@ -168,7 +241,8 @@ export function distrustFinalImpact(
   for (const d of baseline.docs) {
     const after = distrusted.byId[d.id]!
     if (after.proposedName !== d.proposedName) changedProposals++
-    const delta = CONFIDENCE_RANK[after.confidence] - CONFIDENCE_RANK[d.confidence]
+    const delta =
+      CONFIDENCE_RANK[after.confidence] - CONFIDENCE_RANK[d.confidence]
     if (delta > 0) easier++
     if (delta < 0) harder++
   }
@@ -176,10 +250,44 @@ export function distrustFinalImpact(
   let affectedFamilies = 0
   for (const fam of Object.values(baseline.families)) {
     const operative = baseline.byId[fam.operativeId]!
-    if (operative.isFinal && !operative.isDraft && operative.restsOnTheWordFinal) {
+    if (
+      operative.isFinal &&
+      !operative.isDraft &&
+      operative.restsOnTheWordFinal
+    ) {
       affectedFamilies++
     }
   }
 
-  return { distrusted, changedProposals, easier, harder, affectedFamilies }
+  // The orphans: counted by diffing the two runs family by family, not
+  // asserted. A family is orphaned when something in it read as signed
+  // before the rule and nothing does after.
+  const orphanFileIds: string[] = []
+  const orphanReadyIds: string[] = []
+  let orphanFamilies = 0
+  const signed = (c: Classification, ids: string[]) =>
+    ids.filter((id) => c.byId[id]!.isFinal && !c.byId[id]!.isDraft)
+  for (const fam of Object.values(baseline.families)) {
+    const after = distrusted.families[fam.key]
+    if (!after) continue
+    if (!signed(baseline, fam.memberIds).length) continue
+    if (signed(distrusted, after.memberIds).length) continue
+    orphanFamilies++
+    for (const id of fam.memberIds) {
+      orphanFileIds.push(id)
+      const d = baseline.byId[id]!
+      if (d.bucket === "ready" && !d.weakGrouping) orphanReadyIds.push(id)
+    }
+  }
+
+  return {
+    distrusted,
+    changedProposals,
+    easier,
+    harder,
+    affectedFamilies,
+    orphanFamilies,
+    orphanFileIds,
+    orphanReadyIds,
+  }
 }

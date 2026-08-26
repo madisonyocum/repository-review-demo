@@ -6,11 +6,7 @@ import type { Convention, ConventionParse } from "@/lib/convention"
 export type View = "upload" | "dashboard" | "chat" | "manifest"
 
 export type ChangeAction =
-  | "rename"
-  | "move"
-  | "rename+move"
-  | "supersede"
-  | "no-action"
+  "rename" | "move" | "rename+move" | "supersede" | "no-action"
 
 export interface Change {
   fileId: string
@@ -70,7 +66,19 @@ export interface State {
   done: { A: boolean; B: boolean }
   /** When a repository was last read, for the confirmation toast. */
   loadedAt: number
-  seed: number
+  /**
+   * Which page of the worst-first ranking is on screen. The sample is not a
+   * draw — [Show the next five] walks down the list rather than re-rolling.
+   */
+  samplePage: number
+  /**
+   * Files in a version family that, once FINAL is ignored, has nothing at all
+   * claiming to be the signed copy. They still get renamed — the rule changed
+   * no names — but the manifest stops claiming one of them is operative.
+   */
+  flaggedOrphans: string[]
+  /** The plan has been run. Running it twice must not count anything twice. */
+  applied: boolean
 }
 
 export type StoryId = "A" | "B"
@@ -87,7 +95,18 @@ export interface ConventionSnapshot {
 }
 
 export type Entry =
-  | { kind: "beat"; beatId: string; at: number; shown?: ConventionSnapshot }
+  | {
+      kind: "beat"
+      beatId: string
+      at: number
+      shown?: ConventionSnapshot
+      /**
+       * The five files this turn put on screen. Same reason as `shown`: a
+       * turn that showed five named files has to keep showing those five
+       * when the list moves on.
+       */
+      sample?: string[]
+    }
   | { kind: "user"; text: string; at: number }
 
 export interface Chip {
