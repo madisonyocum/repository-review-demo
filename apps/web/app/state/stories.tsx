@@ -18,6 +18,7 @@ import {
   weakestFive,
 } from "@/lib/ledger"
 import {
+  AppliedSummary,
   ConventionCard,
   FileCard,
   Proposal,
@@ -750,7 +751,7 @@ export function buildStories(result: Classification): {
       effect: applyFinalRule,
       suggest: "Good, apply everything and show me the manifest.",
       chips: [
-        { label: "Apply everything", next: "manifest", primary: true },
+        { label: "Apply everything", next: "b6", primary: true },
         { label: "Show all changed files", next: "dashboard" },
         { label: "Show all rules", next: "b5rules" },
       ],
@@ -783,8 +784,28 @@ export function buildStories(result: Classification): {
         </>
       ),
       chips: [
-        { label: "Apply everything", next: "manifest", primary: true },
+        { label: "Apply everything", next: "b6", primary: true },
         { label: "Back", next: "b5rule" },
+      ],
+    },
+
+    /* 5 — Both rules applied, and the record of what ran. */
+    {
+      id: "b6",
+      actor: "assistant",
+      content: (
+        <>
+          <p>
+            Both rules applied and the renames are through. Every change
+            records who approved it and when:
+          </p>
+          <AppliedSummary />
+        </>
+      ),
+      effect: applyEverything(result),
+      suggest: "Show me the manifest.",
+      chips: [
+        { label: "Show the manifest", next: "manifest", primary: true },
       ],
     },
   ]

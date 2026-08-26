@@ -3,7 +3,7 @@
  * to (the sample re-rolls), so a beat's `content` stays a plain ReactNode.
  */
 import { createContext, useContext } from "react"
-import { ArrowRight, FileText, Folder, Pencil, Plus } from "lucide-react"
+import { ArrowRight, Check, FileText, Folder, Pencil, Plus } from "lucide-react"
 
 import { Badge } from "@workspace/ui/components/badge"
 import { cn } from "@workspace/ui/lib/utils"
@@ -16,6 +16,8 @@ import {
   formatPath,
 } from "@/lib/convention"
 import { hasApiKey, MODEL } from "@/lib/llm"
+import { buildManifest } from "@/lib/manifest"
+import { PARTNER } from "@/lib/people"
 import { useAppState } from "@/state/store"
 import type { ConventionSnapshot } from "@/state/types"
 
@@ -475,6 +477,57 @@ export function RuleMatches({ ids }: { ids: string[] }) {
             Can&rsquo;t Identify
           </Badge>
         </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * What the applied plan did, counted off the manifest rows themselves — the
+ * same builder the manifest panel uses, so "renamed" here can only mean a row
+ * that says rename, and the lines can only add up to the repository.
+ */
+export function AppliedSummary() {
+  const state = useAppState()
+  if (!state.result) return null
+  const rows = buildManifest(state)
+  const open = rows.filter((r) => r.approvedBy.includes("(open)"))
+  const archived = rows.filter((r) => r.action === "supersede")
+  const renamed = rows.filter(
+    (r) => r.action !== "no-action" && r.action !== "supersede"
+  )
+
+  const lines: { tone: "ok" | "open"; text: string }[] = [
+    {
+      tone: "ok",
+      text: `${renamed.length} renamed and filed under your convention.`,
+    },
+    {
+      tone: "ok",
+      text: `${archived.length} superseded ${
+        archived.length === 1 ? "copy" : "copies"
+      } moved to ${state.convention.archive}. Nothing deleted.`,
+    },
+    {
+      tone: "open",
+      text: `${open.length} open with ${PARTNER}, each with its reason attached.`,
+    },
+  ]
+
+  return (
+    <div className="surface mt-3 space-y-2.5 px-4 py-3.5">
+      {lines.map((l) => (
+        <p
+          key={l.text}
+          className="flex items-start gap-2.5 text-[0.9375rem] leading-snug"
+        >
+          {l.tone === "ok" ? (
+            <Check className="mt-0.5 size-4 shrink-0 text-ok" />
+          ) : (
+            <ArrowRight className="mt-0.5 size-4 shrink-0 text-primary" />
+          )}
+          <span className="min-w-0">{l.text}</span>
+        </p>
       ))}
     </div>
   )
