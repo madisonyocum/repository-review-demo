@@ -93,7 +93,10 @@ export function Tiles({ compact }: { compact?: boolean }) {
             variant={tile.key === "ready" ? "default" : "outline"}
             size={compact ? "sm" : "lg"}
             disabled={!loaded}
-            className={cn(compact ? "ml-auto" : "mt-4 h-11 w-full text-[0.9375rem]")}
+            className={cn(
+              tile.key !== "ready" && "bg-card hover:bg-muted",
+              compact ? "ml-auto" : "mt-4 h-11 w-full text-[0.9375rem]"
+            )}
             onClick={() =>
               dispatch({ type: "story", id: tile.story, firstBeat: tile.beat })
             }
