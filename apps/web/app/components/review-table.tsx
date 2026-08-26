@@ -58,9 +58,10 @@ export function ReviewTable() {
     },
   ]
 
-  const matching = [...result.docs.filter(facets[tab]!.match)].sort(
+  const ranked = [...result.docs.filter(facets[tab]!.match)].sort(
     (a, b) => RANK[a.confidence] - RANK[b.confidence] || a.id.localeCompare(b.id)
   )
+  const matching = facets[tab]!.bare ? spread(ranked) : ranked
   const pageCount = Math.max(1, Math.ceil(matching.length / PER_PAGE))
   const current = Math.min(page, pageCount)
   const rows = matching.slice((current - 1) * PER_PAGE, current * PER_PAGE)
@@ -104,10 +105,10 @@ export function ReviewTable() {
       <div className="surface mt-2.5 overflow-hidden">
         <table className="w-full table-fixed text-left text-sm">
           <colgroup>
-            <col className="w-[27%]" />
-            <col className="w-[29%]" />
-            <col className="w-[12%]" />
             <col className="w-[32%]" />
+            <col className="w-[31%]" />
+            <col className="w-[13%]" />
+            <col className="w-[24%]" />
           </colgroup>
           <thead>
             <tr className="text-[11px] tracking-[0.08em] text-muted-foreground uppercase">
@@ -140,17 +141,13 @@ export function ReviewTable() {
                   {d.confidence}
                 </td>
                 <td className="px-6 py-3.5">
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={open}>
-                      Approve
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={open}>
-                      Reject
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={open}>
-                      Escalate
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    className="bg-card px-6 hover:bg-muted"
+                    onClick={open}
+                  >
+                    Review
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -202,6 +199,29 @@ export function ReviewTable() {
       </div>
     </div>
   )
+}
+
+/**
+ * The queue tab takes one row from each kind of problem before it repeats, so
+ * its first page reads as the spread of the repository. The facet tabs are
+ * where a single kind is read in bulk, and they keep the plain ranking.
+ */
+function spread(docs: Doc[]): Doc[] {
+  const lanes = new Map<string, Doc[]>()
+  for (const d of docs) {
+    const lane = lanes.get(d.reasonKind)
+    if (lane) lane.push(d)
+    else lanes.set(d.reasonKind, [d])
+  }
+  const queues = [...lanes.values()]
+  const out: Doc[] = []
+  while (out.length < docs.length) {
+    for (const q of queues) {
+      const next = q.shift()
+      if (next) out.push(next)
+    }
+  }
+  return out
 }
 
 function PageButton({

@@ -20,6 +20,19 @@ import {
   type Convention,
 } from "./convention"
 
+/** The problem a row is about to print, in the order the reason picks it. */
+export type ReasonKind =
+  | "unnamed"
+  | "confirmed"
+  | "fromContents"
+  | "contradicts"
+  | "wording"
+  | "date"
+  | "duplicate"
+  | "restsOnFinal"
+  | "supersedes"
+  | "weak"
+
 export type DocType =
   | "MSA"
   | "SOW"
@@ -73,6 +86,8 @@ export interface Doc {
   familyKey: string | null
   bucket: Bucket
   reason: string
+  /** Which of the reasons above this one is, for grouping without re-reading prose. */
+  reasonKind: ReasonKind
   confidence: Confidence
   proposedName: string
   proposedPath: string
@@ -486,6 +501,7 @@ export function classify(
       familyKey: counterparty && docType ? `${counterparty}::${docType}` : null,
       bucket: "unknown",
       reason: "",
+      reasonKind: "unnamed",
       confidence: "Medium",
       proposedName: formatName(
         {
@@ -568,7 +584,8 @@ export function classify(
     }
 
     d.bucket = needsReview ? "review" : "ready"
-    d.reason = explain(d, fam, famHasDuplicates)
+    d.reasonKind = reasonKind(d, fam, famHasDuplicates)
+    d.reason = explain(d, d.reasonKind, fam)
     const versions = fam
       ? fam.memberIds
           .map((id) => byId[id]!.version)
@@ -638,30 +655,58 @@ function pickOperative(members: Doc[]): Doc {
   })[0]!
 }
 
-function explain(d: Doc, fam: Family | undefined, famHasDuplicates: boolean): string {
+/**
+ * One document can carry several problems at once, and the reason names the
+ * first one that matters. Deciding which that is separately from the wording
+ * lets a list group by the problem it is about to print.
+ */
+function reasonKind(
+  d: Doc,
+  fam: Family | undefined,
+  famHasDuplicates: boolean
+): ReasonKind {
   if (d.bucket === "ready") {
-    if (d.counterpartySource === "contents")
+    if (d.counterpartySource === "contents") return "fromContents"
+    if (d.ambiguousDate) return "date"
+    return "confirmed"
+  }
+  if (d.contradicts) return "contradicts"
+  if (d.wording) return "wording"
+  if (d.ambiguousDate) return "date"
+  if (famHasDuplicates && fam) return "duplicate"
+  if (d.isStale && d.isFinal) return "restsOnFinal"
+  if (d.isStale) return "supersedes"
+  return "weak"
+}
+
+function explain(d: Doc, kind: ReasonKind, fam: Family | undefined): string {
+  switch (kind) {
+    case "fromContents":
       return "Counterparty read out of the contents; the filename doesn't name one."
-    if (d.ambiguousDate)
-      return `${describeAmbiguousDate(d.ambiguousDate)} Renaming from the modified date instead.`
-    return "Counterparty and type confirmed by the contents."
+    case "date":
+      return d.bucket === "ready"
+        ? `${describeAmbiguousDate(d.ambiguousDate!)} Renaming from the modified date instead.`
+        : describeAmbiguousDate(d.ambiguousDate!)
+    case "confirmed":
+      return "Counterparty and type confirmed by the contents."
+    case "contradicts":
+      return "The filename says signed and unsigned at once."
+    case "wording":
+      return `Filed as ${d.wording!.filed}. The contents describe ${d.wording!.describes}.`
+    case "duplicate": {
+      const n = fam!.memberIds.length
+      const hasDate = /\b(19|20)\d{2}\b/.test(d.filename)
+      return hasDate
+        ? `1 of ${n} versions with identical text. I can't tell which was signed.`
+        : `1 of ${n} versions with identical text, and no date anywhere.`
+    }
+    case "restsOnFinal":
+      return "The filename says FINAL. Nothing in the contents confirms it."
+    case "supersedes":
+      return "The filename marks this as an old copy, but nothing confirms which one it superseded."
+    default:
+      return "The evidence doesn't fully hold up."
   }
-  if (d.contradicts) return "The filename says signed and unsigned at once."
-  if (d.wording)
-    return `Filed as ${d.wording.filed}. The contents describe ${d.wording.describes}.`
-  if (d.ambiguousDate) return describeAmbiguousDate(d.ambiguousDate)
-  if (famHasDuplicates && fam) {
-    const n = fam.memberIds.length
-    const hasDate = /\b(19|20)\d{2}\b/.test(d.filename)
-    return hasDate
-      ? `1 of ${n} versions with identical text. I can't tell which was signed.`
-      : `1 of ${n} versions with identical text, and no date anywhere.`
-  }
-  if (d.isStale && d.isFinal)
-    return "The filename says FINAL. Nothing in the contents confirms it."
-  if (d.isStale)
-    return "The filename marks this as an old copy, but nothing confirms which one it superseded."
-  return "The evidence doesn't fully hold up."
 }
 
 function scoreConfidence(
